@@ -1,37 +1,21 @@
 #include <Adafruit_NeoPixel.h>
 #include <elapsedMillis.h>
 
-/*
-use static where I can
-
-can I use (complicated) macros to reduce duplication
-
-test different gamma parameters
-*/
 
 /********************************************************
  * POTENTIAL IMPROVEMENTS                               *
  *                                                      *
- * CHANGE THESE FOR NEOPIXEL                            *
- *                                                      *
- *   - UPDATE FUNCTIONS SHOULDN'T USE THE COUNTER!!!    *
- *     It should use time, instead                      *
- *   - SPECIFY somewhere that it's for Pro Micro        *
- *     It matters because of the PINS                   *
- *   - Have "setup function" for each pattern           *
- *     * gamma correct                                  *
- *     * starting color array                           *
- *     * update functions                               *
- *     * etc...                                         *
  *   - Have a pattern with "uniform" brightness         *
+ *   - Use `static` where I can                         *
+ *   - Can I use complicated macros to reduce           *
+ *     repetition?                                      *
+ *   - Test different gamma values                      *
+ *   - Have another pattern (like 1) but avoids         *
+ *     spending too much time on chartreuse             *
  *   - Use different resistors for each channel,        *
  *     (255, 255, 255) should be neutral white          *
  *     (not very light cyan)                            *
- *   - Add dimming potentiometer                        *
- *   - Power more than one RGB LED                      *
- *   - Use a power supply and a resistor                *
- *   - Switch to turn off some colors?                  *
- *   - SHOULD I RESET BRIGHTNESS?                       *
+ *   - Power more than one LED stick                    *
  *                                                      *
  ********************************************************/
 
