@@ -22,7 +22,7 @@
 
 /* ---------------------------------------------------------
  * PROGMEM (so we can put it at the bottom)               */
-//
+
 extern const byte gamma_xlate[];
 
 
@@ -271,37 +271,39 @@ bool update_rotary_encoder() {
 void update_brightness() {
     // TODO TODO: store (static) previous brightness, and
     // allowance for IR integration
-    brightness = map(analogRead(THUMB_POT_0_IN), 0, 1023, 1, 255);
+    brightness = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 1);
     pixels.setBrightness(brightness);
 }
 
 // Used by patterns {0, 1}
 void update_step_delay() {
-    step_delay_0 = map(analogRead(THUMB_POT_1_IN), 0, 1023, 1, 255);
+    step_delay_0 = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 1);
 }
 
 // TODO TODO: should I just get rid of this?
 // Used by patterns {0, 1, 2}
 void update_strobe_delay() {
-    strobe_delay_0 = map(analogRead(THUMB_POT_2_IN), 0, 1023, 0, 255);
+    strobe_delay_0 = map(analogRead(THUMB_POT_2_IN), 0, 1023, 255, 0);
 }
+
+// TODO now: reverse these
 
 // Used by patterns {2}
 void update_red_brightness() {
     current_rgbw[RED_INDEX] = map(analogRead(THUMB_POT_0_IN),
-                                  0, 1023, 0, 255);
+                                  0, 1023, 255, 0);
 }
 
 // Used by patterns {2}
 void update_green_brightness() {
     current_rgbw[GREEN_INDEX] = map(analogRead(THUMB_POT_1_IN),
-                                    0, 1023, 0, 255);
+                                    0, 1023, 255, 0);
 }
 
 // Used by patterns {2}
 void update_blue_brightness() {
     current_rgbw[BLUE_INDEX] = map(analogRead(THUMB_POT_2_IN),
-                                   0, 1023, 0, 255);
+                                   0, 1023, 255, 0);
 }
 
 
