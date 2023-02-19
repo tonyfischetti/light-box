@@ -7,6 +7,7 @@
  *                                                      *
  *   - Have a pattern with "uniform" brightness         *
  *   - Use `static` where I can                         *
+ *   - Use `const` where I can                          *
  *   - Can I use complicated macros to reduce           *
  *     repetition?                                      *
  *   - Test different gamma values                      *
@@ -15,7 +16,6 @@
  *   - Use different resistors for each channel,        *
  *     (255, 255, 255) should be neutral white          *
  *     (not very light cyan)                            *
- *   - Power more than one LED stick                    *
  *                                                      *
  ********************************************************/
 
@@ -32,6 +32,9 @@ extern const byte gamma_xlate[];
 
 #define DEBUG false
 
+// Total number of available Neopixel (even if they're not all used)
+#define ALL_NP_COUNT 16
+
 // value to change the color by on each step
 // #define STEP_DELTA 5
 #define STEP_DELTA 2
@@ -44,9 +47,6 @@ extern const byte gamma_xlate[];
 #define GREEN_INDEX 1
 #define BLUE_INDEX  2
 #define WHITE_INDEX 3
-
-// Number of NeoPixel LEDS (8 in the stick)
-#define NP_COUNT 8
 
 #define DBUG_EVERY 3000
 #define POT_CHECK_EVERY 50
@@ -104,8 +104,11 @@ extern const byte gamma_xlate[];
 /* ---------------------------------------------------------
  * GLOBALS                                                */
 
+// Number of NeoPixel LEDS (8 in the stick)
+byte NP_COUNT = 8;
+
 // holds the NeoPixel object
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NP_COUNT, NEOPIXEL_PIN,
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(ALL_NP_COUNT, NEOPIXEL_PIN,
                                              NEO_GRBW + NEO_KHZ800);
 
 // holds the values for each RGBw channel (globally)
@@ -154,6 +157,7 @@ typedef void (*SensorUpdateFunction) ();
 SensorUpdateFunction update_thumb_pot_0 = nothing_function;
 SensorUpdateFunction update_thumb_pot_1 = nothing_function;
 SensorUpdateFunction update_thumb_pot_2 = nothing_function;
+SensorUpdateFunction sw_button_press    = nothing_function;
 
 typedef void (*PatternFunction) ();
 PatternFunction current_pattern_function = nothing_function;
@@ -229,15 +233,7 @@ bool update_rotary_encoder() {
     bool current_state_DT;
 
     if (re_timer > RE_CHECK_EVERY) {
-
-        // TODO TODO FINISH THIS
-        // TODO TODO should I use EPSILON??
-        /* --- SW ---- */
-
-
-        /* --- CLK ---- */
         current_state_CLK = digitalRead(RE_CLK);
-
         if (current_state_CLK != previous_state_CLK  && current_state_CLK == 1){
             current_state_DT = digitalRead(RE_DT_LAG);
             #if DEBUG
@@ -265,6 +261,22 @@ bool update_rotary_encoder() {
         re_timer = 0;
     }
     return !pattern_changed_p;
+}
+
+// This one stays the same for all patterns
+// If the button is pressed, it calls `sw_button_press`, which
+// _can_ change based on the pattern / setting
+void update_re_button() {
+    static long previous_sw_button_press;
+    long current_millis = millis();
+    if (digitalRead(RE_SW_BUTTON)==LOW) {
+        if ((current_millis - previous_sw_button_press) > EPSILON){
+            #if DEBUG
+            sw_button_press();
+            #endif
+        }
+        previous_sw_button_press = current_millis;
+    }
 }
 
 // Used by patterns {0, 1, 2, 4}
@@ -306,6 +318,19 @@ void update_blue_brightness() {
                                    0, 1023, 255, 0);
 }
 
+// TODO: this is temporary
+void update_np_count() {
+    if (NP_COUNT == 8) {
+        NP_COUNT = 16;
+    }
+    else {
+        NP_COUNT = 8;
+        for (int i = NP_COUNT; i < ALL_NP_COUNT; i++) {
+            pixels.setPixelColor(i, 0, 0, 0, 0);
+        }
+        pixels.show();
+    }
+}
 
 
 /* ---------------------------------------------------------
@@ -359,7 +384,10 @@ void do_strobe_delay() {
 }
 
 bool update_all_sensors() {
-    if (re_timer > RE_CHECK_EVERY) update_rotary_encoder();
+    if (re_timer > RE_CHECK_EVERY) {
+        update_rotary_encoder();
+        update_re_button();
+    }
     if (pot_timer > POT_CHECK_EVERY) {
         update_thumb_pot_0();
         update_thumb_pot_1();
@@ -425,7 +453,7 @@ void all_color_change_pattern_0() {
     update_thumb_pot_0 = update_brightness;
     update_thumb_pot_1 = update_step_delay;
     update_thumb_pot_2 = update_strobe_delay;
-
+    sw_button_press    = update_np_count;
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
@@ -524,6 +552,7 @@ void all_color_change_pattern_1() {
     update_thumb_pot_0 = update_brightness;
     update_thumb_pot_1 = update_step_delay;
     update_thumb_pot_2 = update_strobe_delay;
+    sw_button_press    = update_np_count;
 
     gamma_correct_p = true;
 
@@ -575,8 +604,10 @@ void solid_color_pattern() {
     update_thumb_pot_0 = update_red_brightness;
     update_thumb_pot_1 = update_green_brightness;
     update_thumb_pot_2 = update_blue_brightness;
-    // fix
+    sw_button_press    = update_np_count;
+
     brightness = 255;
+    update_brightness();
 
     write_RGBw_colors();
 
@@ -614,6 +645,7 @@ void warm_light_pattern() {
     update_thumb_pot_0 = update_brightness;
     update_thumb_pot_1 = nothing_function;
     update_thumb_pot_2 = nothing_function;
+    sw_button_press    = update_np_count;
 
     current_rgbw[RED_INDEX]   = 0;
     current_rgbw[GREEN_INDEX] = 0;
