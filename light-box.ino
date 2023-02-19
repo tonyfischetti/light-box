@@ -30,7 +30,7 @@ extern const byte gamma_xlate[];
 /* ---------------------------------------------------------
  * MACROS                                                 */
 
-#define DEBUG false
+#define DEBUG true
 
 // Total number of available Neopixel (even if they're not all used)
 #define ALL_NP_COUNT 16
@@ -272,8 +272,9 @@ void update_re_button() {
     if (digitalRead(RE_SW_BUTTON)==LOW) {
         if ((current_millis - previous_sw_button_press) > EPSILON){
             #if DEBUG
-            sw_button_press();
+            Serial.println("button clicked. about to run `sw_button_press`");
             #endif
+            sw_button_press();
         }
         previous_sw_button_press = current_millis;
     }
@@ -738,5 +739,6 @@ const byte PROGMEM gamma_xlate[] = {
   144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
   177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
   215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
+
 
 
