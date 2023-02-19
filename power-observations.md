@@ -51,37 +51,40 @@ full                  128 mA
 ### pattern 0
 ```
 brightness            red         white
-lowest brightness     /
-12 o clock            /
-3 o clock             /
-full                  /
+lowest brightness     4.7 mA      5.4 mA
+12 o clock            34.5 mA     94 mA
+3 o clock             74 mA       > 200 mA
+full                  125 nA      > 200 mA
 ```
 
 ### pattern 1
 ```
 brightness            red         cyan
-lowest brightness     /
-12 o clock            /
-3 o clock             /
-full                  /
+lowest brightness     5 mA        5 mA
+12 o clock            33.4 mA     62 mA
+3 o clock             70.4        137 mA
+full                  125 mA      > 200 mA
 ```
 
 ### pattern 2
 ```
 brightness            red         green      blue         white
-lowest brightness     /
-12 o clock            /
-3 o clock             /
-full                  /
+lowest brightness     4.8 mA      4.8 mA     4.8 mA       4.8 mA
+12 o clock            7 mA        7 mA       6.1 mA       9 mA
+3 o clock             32 mA       31 mA      26 mA        72 mA
+full                  128 mA      127 mA     126 mA       > 200 mA
 ```
 
 ### pattern 3
 ```
 brightness            warm white
-lowest brightness     /
-12 o clock            /
-3 o clock             /
-full                  /
+lowest brightness     5.5 mA
+12 o clock            67 mA
+3 o clock             148 mA
+full                  > 200 mA
 ```
 
+What should be the highest current (pattern 2 / white) didn't blow a .5
+amp fuse, so.... we good?
 
+R estimated that it should be no more than 350 mA
