@@ -1,6 +1,9 @@
+#include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include <elapsedMillis.h>
 
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
 /********************************************************
  * POTENTIAL IMPROVEMENTS                               *
@@ -30,7 +33,7 @@ extern const byte gamma_xlate[];
 /* ---------------------------------------------------------
  * MACROS                                                 */
 
-#define DEBUG true
+#define DEBUG false
 
 // Total number of available Neopixel (even if they're not all used)
 #define ALL_NP_COUNT 16
@@ -66,16 +69,25 @@ extern const byte gamma_xlate[];
 
 /* - - FOR SPARKFUN PRO MICRO - - - - - - -*/
 // TODO TODO have another set for other board(s)
-// #define NEOPIXEL_PIN  7
-// 
-// #define RE_CLK        13
-// #define RE_DT_LAG     12
-// #define RE_SW_BUTTON  11
-// 
-// #define THUMB_POT_0_IN  A0
-// #define THUMB_POT_1_IN  A1
-// #define THUMB_POT_2_IN  A2
-// 
+
+
+/* I2C AND IC2 PINS -- */
+#define SDA           2   // orange
+#define SCL           3   // periwinkle
+#define BUZZER        4   // dark pink
+#define NEOPIXEL_PIN  5   // sea green
+#define PHOTORESISTOR A7  // (6) yellow
+#define RE_SW_BUTTON  7   // navy
+#define RE_DT_LAG     8   // purple
+#define RE_CLK        9   // green
+
+#define IR_PIN        10  // light pink
+
+
+#define THUMB_POT_0_IN  A0
+#define THUMB_POT_1_IN  A1
+#define THUMB_POT_2_IN  A2
+
 // /* I2C AND IC2 PINS -- */
 // // TODO TODO: #define LCD_I2C_ADDRESS
 // #define SDA  A4
@@ -83,7 +95,7 @@ extern const byte gamma_xlate[];
 
 
 /* - - FOR ARDUINO UNO - - - - - - -*/
-
+/*
 #define NEOPIXEL_PIN  7
 
 #define RE_CLK        13
@@ -93,11 +105,11 @@ extern const byte gamma_xlate[];
 #define THUMB_POT_0_IN  A0
 #define THUMB_POT_1_IN  A1
 #define THUMB_POT_2_IN  A2
-
+*/
 /* I2C AND IC2 PINS -- */
 // TODO TODO: #define LCD_I2C_ADDRESS
-#define SDA  A4
-#define SCL  A5
+// #define SDA  A4
+// #define SCL  A5
 
 
 
@@ -125,6 +137,8 @@ elapsedMillis debug_timer;
 elapsedMillis pot_timer;
 elapsedMillis re_timer;
 elapsedMillis step_timer;
+
+LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 
 
@@ -459,62 +473,62 @@ void all_color_change_pattern_0() {
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
         // first sub-pattern
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_down_color(RED_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_down_color(GREEN_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_up_color(RED_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_down_color(BLUE_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_up_color(GREEN_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_up_color(BLUE_INDEX)) {}
 
         // second sub-pattern
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_down_color(GREEN_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_down_color(BLUE_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_up_color(GREEN_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_down_color(RED_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_up_color(BLUE_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_up_color(RED_INDEX)) {}
 
         // third sub-pattern
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_down_color(BLUE_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_down_color(RED_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_up_color(BLUE_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_down_color(GREEN_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_up_color(RED_INDEX)) {}
-        while (update_all_sensors() && 
+        while (update_all_sensors() &&
                debug_values() &&
                bring_up_color(GREEN_INDEX)) {}
     }
@@ -654,7 +668,7 @@ void warm_light_pattern() {
     current_rgbw[WHITE_INDEX] = 255;
 
     write_RGBw_colors();
-    
+
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
         update_all_sensors();
@@ -692,6 +706,8 @@ void setup() {
     pinMode(RE_DT_LAG,     INPUT);
     pinMode(RE_SW_BUTTON,  INPUT_PULLUP);
 
+    pinMode(PHOTORESISTOR, INPUT);
+
     update_brightness();
     pixels.begin();
     pixels.setBrightness(brightness);
@@ -700,6 +716,15 @@ void setup() {
     Serial.begin(9600);
     Serial.println("started serial");
     #endif
+
+
+    lcd.init();
+    lcd.backlight();
+    lcd.setCursor(3, 0);
+    lcd.print("Light Box");
+    lcd.setCursor(2, 1);
+    lcd.print("-------------");
+
 }
 
 
