@@ -8,17 +8,16 @@
 /********************************************************
  * POTENTIAL IMPROVEMENTS                               *
  *                                                      *
+ *   - Do LCD timeout thing                             *
  *   - Have a pattern with "uniform" brightness         *
  *   - Use `static` where I can                         *
  *   - Use `const` where I can                          *
+ *   - Use unsigned data types where I can              *
  *   - Can I use complicated macros to reduce           *
  *     repetition?                                      *
  *   - Test different gamma values                      *
  *   - Have another pattern (like 1) but avoids         *
  *     spending too much time on chartreuse             *
- *   - Use different resistors for each channel,        *
- *     (255, 255, 255) should be neutral white          *
- *     (not very light cyan)                            *
  *                                                      *
  ********************************************************/
 
