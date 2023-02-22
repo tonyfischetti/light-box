@@ -33,7 +33,7 @@ extern const byte gamma_xlate[];
 /* ---------------------------------------------------------
  * MACROS                                                 */
 
-#define DEBUG false
+#define DEBUG true
 
 // Total number of available Neopixel (even if they're not all used)
 #define ALL_NP_COUNT 16
@@ -54,6 +54,7 @@ extern const byte gamma_xlate[];
 #define DBUG_EVERY 3000
 #define POT_CHECK_EVERY 50
 #define RE_CHECK_EVERY 10
+#define LCD_EVERY 500
 
 #define NUM_PATTERNS 4
 
@@ -71,7 +72,6 @@ extern const byte gamma_xlate[];
 // TODO TODO have another set for other board(s)
 
 
-/* I2C AND IC2 PINS -- */
 #define SDA           2   // orange
 #define SCL           3   // periwinkle
 #define BUZZER        4   // dark pink
@@ -83,15 +83,9 @@ extern const byte gamma_xlate[];
 
 #define IR_PIN        10  // light pink
 
-
 #define THUMB_POT_0_IN  A0
 #define THUMB_POT_1_IN  A1
 #define THUMB_POT_2_IN  A2
-
-// /* I2C AND IC2 PINS -- */
-// // TODO TODO: #define LCD_I2C_ADDRESS
-// #define SDA  A4
-// #define SCL  A5
 
 
 /* - - FOR ARDUINO UNO - - - - - - -*/
@@ -137,6 +131,7 @@ elapsedMillis debug_timer;
 elapsedMillis pot_timer;
 elapsedMillis re_timer;
 elapsedMillis step_timer;
+elapsedMillis lcd_timer;
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -176,10 +171,13 @@ SensorUpdateFunction sw_button_press    = nothing_function;
 typedef void (*PatternFunction) ();
 PatternFunction current_pattern_function = nothing_function;
 
+typedef void (*OutputUpdateFunction) ();
+OutputUpdateFunction update_LCD         = nothing_function;
+
 
 
 /* ---------------------------------------------------------
- * DEBUG                                                  */
+ * DEBUG AND PROFILING                                    */
 
 // TODO: more debug info (pattern, etc...)
 bool debug_values() {
@@ -216,6 +214,12 @@ bool debug_values() {
     return true;
 }
 
+int free_ram() {
+    extern int __heap_start, *__brkval;
+    int v;
+    return (int)&v - (__brkval == 0  ? (int)&__heap_start : (int) __brkval);
+}
+
 
 
 /* ---------------------------------------------------------
@@ -246,34 +250,31 @@ bool update_rotary_encoder() {
     static bool previous_state_CLK = current_state_CLK;
     bool current_state_DT;
 
-    if (re_timer > RE_CHECK_EVERY) {
-        current_state_CLK = digitalRead(RE_CLK);
-        if (current_state_CLK != previous_state_CLK  && current_state_CLK == 1){
-            current_state_DT = digitalRead(RE_DT_LAG);
+    current_state_CLK = digitalRead(RE_CLK);
+    if (current_state_CLK != previous_state_CLK  && current_state_CLK == 1){
+        current_state_DT = digitalRead(RE_DT_LAG);
+        #if DEBUG
+        Serial.println("current_state_CLK is different than before");
+        Serial.print("PREVIOUS CLK:    ");
+        Serial.println(previous_state_CLK);
+        Serial.print("CURRENT_CLK:     ");
+        Serial.println(current_state_CLK);
+        Serial.print("CURRENT DT:     ");
+        Serial.println(current_state_DT);
+        #endif
+        if (current_state_DT != current_state_CLK) {
             #if DEBUG
-            Serial.println("current_state_CLK is different than before");
-            Serial.print("PREVIOUS CLK:    ");
-            Serial.println(previous_state_CLK);
-            Serial.print("CURRENT_CLK:     ");
-            Serial.println(current_state_CLK);
-            Serial.print("CURRENT DT:     ");
-            Serial.println(current_state_DT);
+            Serial.println("supposed to increment");
             #endif
-            if (current_state_DT != current_state_CLK) {
-                #if DEBUG
-                Serial.println("supposed to increment");
-                #endif
-                update_current_pattern_fun_index(true);
-            } else {
-                #if DEBUG
-                Serial.println("supposed to decrement");
-                #endif
-                update_current_pattern_fun_index(false);
-            }
+            update_current_pattern_fun_index(true);
+        } else {
+            #if DEBUG
+            Serial.println("supposed to decrement");
+            #endif
+            update_current_pattern_fun_index(false);
         }
-        previous_state_CLK = current_state_CLK;
-        re_timer = 0;
     }
+    previous_state_CLK = current_state_CLK;
     return !pattern_changed_p;
 }
 
@@ -351,9 +352,16 @@ void update_np_count() {
 /* ---------------------------------------------------------
  * OUTPUT UPDATE FUNCTIONS                                */
 
-// TODO TODO is this the best way? should it go elsewhere?
-void update_LCD() {
-    // TODO TODO write this
+void show_pattern_and_free_mem() {
+    int freemem = free_ram();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("pattern: ");
+    lcd.print(current_pattern_fun_index);
+    lcd.setCursor(0, 1);
+    lcd.print("free mem: ");
+    lcd.print(freemem);
+    lcd.print("B");
     return;
 }
 
@@ -398,16 +406,21 @@ void do_strobe_delay() {
   /*   } */
 }
 
-bool update_all_sensors() {
+bool update_all_devices() {
     if (re_timer > RE_CHECK_EVERY) {
         update_rotary_encoder();
         update_re_button();
+        re_timer = 0;
     }
     if (pot_timer > POT_CHECK_EVERY) {
         update_thumb_pot_0();
         update_thumb_pot_1();
         update_thumb_pot_2();
         pot_timer = 0;
+    }
+    if (lcd_timer > LCD_EVERY) {
+        update_LCD();
+        lcd_timer = 0;
     }
     return !pattern_changed_p;
 }
@@ -465,70 +478,71 @@ void all_color_change_pattern_0() {
     #endif
 
     /* ------- SETUP CODE ------- */
-    update_thumb_pot_0 = update_brightness;
-    update_thumb_pot_1 = update_step_delay;
-    update_thumb_pot_2 = update_strobe_delay;
-    sw_button_press    = update_np_count;
+    update_thumb_pot_0  = update_brightness;
+    update_thumb_pot_1  = update_step_delay;
+    update_thumb_pot_2  = update_strobe_delay;
+    sw_button_press     = update_np_count;
+    update_LCD          = show_pattern_and_free_mem;
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
         // first sub-pattern
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(RED_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(GREEN_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(RED_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(BLUE_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(GREEN_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(BLUE_INDEX)) {}
 
         // second sub-pattern
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(GREEN_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(BLUE_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(GREEN_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(RED_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(BLUE_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(RED_INDEX)) {}
 
         // third sub-pattern
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(BLUE_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(RED_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(BLUE_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(GREEN_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(RED_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(GREEN_INDEX)) {}
     }
@@ -564,10 +578,11 @@ void all_color_change_pattern_1() {
     current_rgbw[GREEN_INDEX] = 255;
     current_rgbw[BLUE_INDEX]  = 255;
 
-    update_thumb_pot_0 = update_brightness;
-    update_thumb_pot_1 = update_step_delay;
-    update_thumb_pot_2 = update_strobe_delay;
-    sw_button_press    = update_np_count;
+    update_thumb_pot_0  = update_brightness;
+    update_thumb_pot_1  = update_step_delay;
+    update_thumb_pot_2  = update_strobe_delay;
+    sw_button_press     = update_np_count;
+    update_LCD          = show_pattern_and_free_mem;
 
     gamma_correct_p = true;
 
@@ -575,22 +590,22 @@ void all_color_change_pattern_1() {
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p){
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(GREEN_INDEX)) {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(RED_INDEX))     {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(BLUE_INDEX))  {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(GREEN_INDEX))   {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_down_color(RED_INDEX))   {}
-        while (update_all_sensors() &&
+        while (update_all_devices() &&
                debug_values() &&
                bring_up_color(BLUE_INDEX))    {}
     }
@@ -616,10 +631,11 @@ void solid_color_pattern() {
     #endif
 
     /* ------- SETUP CODE ------- */
-    update_thumb_pot_0 = update_red_brightness;
-    update_thumb_pot_1 = update_green_brightness;
-    update_thumb_pot_2 = update_blue_brightness;
-    sw_button_press    = update_np_count;
+    update_thumb_pot_0  = update_red_brightness;
+    update_thumb_pot_1  = update_green_brightness;
+    update_thumb_pot_2  = update_blue_brightness;
+    sw_button_press     = update_np_count;
+    update_LCD          = show_pattern_and_free_mem;
 
     brightness = 255;
     update_brightness();
@@ -628,7 +644,7 @@ void solid_color_pattern() {
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
-        update_all_sensors();
+        update_all_devices();
         debug_values();
         // stop the step timer from overflowing
         step_timer = 0;
@@ -657,10 +673,11 @@ void warm_light_pattern() {
     #endif
 
     /* ------- SETUP CODE ------- */
-    update_thumb_pot_0 = update_brightness;
-    update_thumb_pot_1 = nothing_function;
-    update_thumb_pot_2 = nothing_function;
-    sw_button_press    = update_np_count;
+    update_thumb_pot_0  = update_brightness;
+    update_thumb_pot_1  = nothing_function;
+    update_thumb_pot_2  = nothing_function;
+    sw_button_press     = update_np_count;
+    update_LCD          = show_pattern_and_free_mem;
 
     current_rgbw[RED_INDEX]   = 0;
     current_rgbw[GREEN_INDEX] = 0;
@@ -671,7 +688,7 @@ void warm_light_pattern() {
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
-        update_all_sensors();
+        update_all_devices();
         debug_values();
         // stop the step timer from overflowing
         step_timer = 0;
@@ -713,7 +730,7 @@ void setup() {
     pixels.setBrightness(brightness);
 
     #if DEBUG
-    Serial.begin(9600);
+    Serial.begin(115200);
     Serial.println("started serial");
     #endif
 
