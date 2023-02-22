@@ -33,7 +33,8 @@ extern const byte gamma_xlate[];
 /* ---------------------------------------------------------
  * MACROS                                                 */
 
-#define DEBUG true
+#define DEBUG   false
+#define PROFILE true
 
 // Total number of available Neopixel (even if they're not all used)
 #define ALL_NP_COUNT 16
@@ -51,26 +52,29 @@ extern const byte gamma_xlate[];
 #define BLUE_INDEX  2
 #define WHITE_INDEX 3
 
-#define DBUG_EVERY 3000
+#define DBUG_EVERY      3000
 #define POT_CHECK_EVERY 50
-#define RE_CHECK_EVERY 10
-#define LCD_EVERY 500
+#define RE_CHECK_EVERY  10
+#define LCD_EVERY       500
 
 #define NUM_PATTERNS 4
 
 // fix
-#define UP true
-#define DOWN false
+#define UP        true
+#define DOWN      false
 #define INCREMENT true
 #define DECREMENT false
 
+// TODO TODO: temp (or is it?)
+// TODO TODO: what the hell does this mean, anyway?
+#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 
 /* ---------------------------------------------------------
  * PIN MACROS                                             */
 
-/* - - FOR SPARKFUN PRO MICRO - - - - - - -*/
+/* - - FOR PRO MICRO - - - - - - -*/
 // TODO TODO have another set for other board(s)
-
 
 #define SDA           2   // orange
 #define SCL           3   // periwinkle
@@ -126,12 +130,21 @@ bool gamma_correct_p = true;
 // flag that gets set when the pattern is changed
 bool pattern_changed_p = false;
 
+#if PROFILE
+// TODO: does it have to be a long?
+unsigned long current_fun_inner_loop_time = 0;
+#endif
+
 // timers for various things that need timers
 elapsedMillis debug_timer;
 elapsedMillis pot_timer;
 elapsedMillis re_timer;
 elapsedMillis step_timer;
 elapsedMillis lcd_timer;
+
+#if PROFILE
+elapsedMillis inner_loop_time;
+#endif
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -365,6 +378,19 @@ void show_pattern_and_free_mem() {
     return;
 }
 
+void show_pattern_and_timing() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("pattern: ");
+    lcd.print(current_pattern_fun_index);
+    #if PROFILE
+    lcd.setCursor(0, 1);
+    lcd.print("loop: ");
+    lcd.print(current_fun_inner_loop_time);
+    #endif
+    return;
+}
+
 
 /* ---------------------------------------------------------
  * SHARED FUNCTIONS                                       */
@@ -482,10 +508,14 @@ void all_color_change_pattern_0() {
     update_thumb_pot_1  = update_step_delay;
     update_thumb_pot_2  = update_strobe_delay;
     sw_button_press     = update_np_count;
-    update_LCD          = show_pattern_and_free_mem;
+    update_LCD          = show_pattern_and_timing;
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
+        #if PROFILE
+        inner_loop_time = 0;
+        #endif
+
         // first sub-pattern
         while (update_all_devices() &&
                debug_values() &&
@@ -545,6 +575,10 @@ void all_color_change_pattern_0() {
         while (update_all_devices() &&
                debug_values() &&
                bring_up_color(GREEN_INDEX)) {}
+
+        #if PROFILE
+        current_fun_inner_loop_time = inner_loop_time;
+        #endif
     }
 
     /* ------- TEARDOWN CODE ------- */
@@ -582,7 +616,7 @@ void all_color_change_pattern_1() {
     update_thumb_pot_1  = update_step_delay;
     update_thumb_pot_2  = update_strobe_delay;
     sw_button_press     = update_np_count;
-    update_LCD          = show_pattern_and_free_mem;
+    update_LCD          = show_pattern_and_timing;
 
     gamma_correct_p = true;
 
@@ -590,6 +624,10 @@ void all_color_change_pattern_1() {
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p){
+        #if PROFILE
+        inner_loop_time = 0;
+        #endif
+
         while (update_all_devices() &&
                debug_values() &&
                bring_down_color(GREEN_INDEX)) {}
@@ -608,6 +646,10 @@ void all_color_change_pattern_1() {
         while (update_all_devices() &&
                debug_values() &&
                bring_up_color(BLUE_INDEX))    {}
+
+        #if PROFILE
+        current_fun_inner_loop_time = inner_loop_time;
+        #endif
     }
 
     /* ------- TEARDOWN CODE ------- */
@@ -635,7 +677,7 @@ void solid_color_pattern() {
     update_thumb_pot_1  = update_green_brightness;
     update_thumb_pot_2  = update_blue_brightness;
     sw_button_press     = update_np_count;
-    update_LCD          = show_pattern_and_free_mem;
+    update_LCD          = show_pattern_and_timing;
 
     brightness = 255;
     update_brightness();
@@ -644,11 +686,19 @@ void solid_color_pattern() {
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
+        #if PROFILE
+        inner_loop_time = 0;
+        #endif
+
         update_all_devices();
         debug_values();
         // stop the step timer from overflowing
         step_timer = 0;
         write_RGBw_colors();
+
+        #if PROFILE
+        current_fun_inner_loop_time = inner_loop_time;
+        #endif
     }
 
     /* ------- TEARDOWN CODE ------- */
@@ -677,7 +727,7 @@ void warm_light_pattern() {
     update_thumb_pot_1  = nothing_function;
     update_thumb_pot_2  = nothing_function;
     sw_button_press     = update_np_count;
-    update_LCD          = show_pattern_and_free_mem;
+    update_LCD          = show_pattern_and_timing;
 
     current_rgbw[RED_INDEX]   = 0;
     current_rgbw[GREEN_INDEX] = 0;
@@ -688,11 +738,19 @@ void warm_light_pattern() {
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
+        #if PROFILE
+        inner_loop_time = 0;
+        #endif
+
         update_all_devices();
         debug_values();
         // stop the step timer from overflowing
         step_timer = 0;
         write_RGBw_colors();
+
+        #if PROFILE
+        current_fun_inner_loop_time = inner_loop_time;
+        #endif
     }
 
     /* ------- TEARDOWN CODE ------- */
@@ -733,6 +791,10 @@ void setup() {
     Serial.begin(115200);
     Serial.println("started serial");
     #endif
+
+    sbi(ADCSRA, ADPS2);
+    cbi(ADCSRA, ADPS1);
+    cbi(ADCSRA, ADPS0);
 
 
     lcd.init();
