@@ -1,13 +1,34 @@
+
+/************************************************************************
+ *                                                                      *
+ *                                                                      *
+ *                                                                      *
+ *                                                                      *
+ *                                                                      *
+ *                                                                      *
+ *                                                                      *
+ *                                                                      *
+ *                                                                      *
+ ************************************************************************/
+
+
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include <elapsedMillis.h>
 
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <IRremote.hpp>
+
+
 
 /********************************************************
  * POTENTIAL IMPROVEMENTS                               *
  *                                                      *
+ *   - Can I use a macro like DO_DEBUG that,            *
+ *     conditionally, sets `debug_values` to true if    *
+ *     DEBUG is false. Will avoid function call.        *
+ *     Any time savings?                                *
  *   - Do LCD timeout thing                             *
  *   - Have a pattern with "uniform" brightness         *
  *   - Use `static` where I can                         *
@@ -36,7 +57,7 @@ extern const byte gamma_xlate[];
 #define PROFILE false
 
 // Total number of available Neopixel (even if they're not all used)
-#define ALL_NP_COUNT 16
+#define ALL_NP_COUNT 24
 
 // value to change the color by on each step
 // #define STEP_DELTA 5
@@ -44,6 +65,10 @@ extern const byte gamma_xlate[];
 
 // number of milliseconds to wait for buttons, etc. to settle
 #define EPSILON 250
+
+// amount the thumb pots must change to steal control back
+// from the IR remote
+#define ANALOG_DEV_TOLERANCE 2
 
 // The indices into the `current_rgbw` array for each color
 #define RED_INDEX   0
@@ -55,6 +80,7 @@ extern const byte gamma_xlate[];
 #define POT_CHECK_EVERY 50
 #define RE_CHECK_EVERY  10
 #define LCD_EVERY       500
+#define IR_CHECK_EVERY  20
 
 #define NUM_PATTERNS 4
 
@@ -64,10 +90,29 @@ extern const byte gamma_xlate[];
 #define INCREMENT true
 #define DECREMENT false
 
-// TODO TODO: temp (or is it?)
-// TODO TODO: what the hell does this mean, anyway?
-#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
-#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+// TODO TODO: how can I move this?
+#define REM_POWER   69
+#define REM_VOL_UP  70
+#define REM_FUNC    71
+#define REM_BACK    68
+#define REM_PLAY    64
+#define REM_FORWARD 67
+#define REM_DOWN    7
+#define REM_VOL_DWN 21
+#define REM_UP      9
+#define REM_ZERO    22
+#define REM_EQ      25
+#define REM_ST      13
+#define REM_ONE     12
+#define REM_TWO     24
+#define REM_THREE   94
+#define REM_FOUR    8
+#define REM_FIVE    28
+#define REM_SIX     90
+#define REM_SEVEN   66
+#define REM_EIGHT   82
+#define REM_NINE    74
+
 
 /* ---------------------------------------------------------
  * PIN MACROS                                             */
@@ -111,6 +156,17 @@ extern const byte gamma_xlate[];
 
 
 /* ---------------------------------------------------------
+ * IR REMOTE MACROS                                       */
+#define REM_POWER   69
+#define REM_VOL_UP  70
+#define REM_VOL_DWN 21
+#define REM_BACK    68
+#define REM_FORWARD 67
+
+
+
+
+/* ---------------------------------------------------------
  * GLOBALS                                                */
 
 // Number of NeoPixel LEDS (8 in the stick)
@@ -140,10 +196,15 @@ elapsedMillis pot_timer;
 elapsedMillis re_timer;
 elapsedMillis step_timer;
 elapsedMillis lcd_timer;
+elapsedMillis ir_timer;
 
 #if PROFILE
 elapsedMillis inner_loop_time;
 #endif
+
+// flag indicating whether it is the IR remote
+// or the on-box controls that are in command
+bool control_to_ir = true;
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -220,6 +281,7 @@ bool debug_values() {
         Serial.print("step delay: ");
         Serial.println(step_delay_0);
         Serial.println("-----------------");
+        Serial.flush();
         debug_timer = 0;
     }
     #endif
@@ -265,15 +327,6 @@ bool update_rotary_encoder() {
     current_state_CLK = digitalRead(RE_CLK);
     if (current_state_CLK != previous_state_CLK  && current_state_CLK == 1){
         current_state_DT = digitalRead(RE_DT_LAG);
-        #if DEBUG
-        Serial.println("current_state_CLK is different than before");
-        Serial.print("PREVIOUS CLK:    ");
-        Serial.println(previous_state_CLK);
-        Serial.print("CURRENT_CLK:     ");
-        Serial.println(current_state_CLK);
-        Serial.print("CURRENT DT:     ");
-        Serial.println(current_state_DT);
-        #endif
         if (current_state_DT != current_state_CLK) {
             #if DEBUG
             Serial.println("supposed to increment");
@@ -307,11 +360,76 @@ void update_re_button() {
     }
 }
 
+// TODO TODO TODO: document
+void update_ir() {
+    static unsigned long previous_ir_signal;
+    byte command;
+    unsigned long current_millis = millis();
+    if (IrReceiver.decode()) {
+        IrReceiver.resume();
+        Serial.println("GOT SOMETHING!");
+        command = IrReceiver.decodedIRData.command;
+        #if DEBUG
+        Serial.println("taking back control from IR");
+        #endif
+        control_to_ir = true;
+        if ((current_millis - previous_ir_signal) > EPSILON) {
+            Serial.print("command was: ");
+            Serial.println(command);
+            switch (command) {
+                 case REM_POWER:
+                    Serial.print("POWER ");
+                    update_np_count();
+                    break;
+                case REM_VOL_UP:
+                    Serial.print("volume up ");
+                    if (brightness <= 230)
+                        brightness += 25;
+                    else
+                        brightness = 255;
+                    pixels.setBrightness(brightness);
+                    break;
+                case REM_VOL_DWN:
+                    Serial.print("volume down ");
+                    if (brightness >= 25)
+                        brightness -= 25;
+                    else
+                        brightness = 0;
+                    pixels.setBrightness(brightness);
+                    break;
+                case REM_BACK:
+                    Serial.print("back ");
+                    update_current_pattern_fun_index(false);
+                    break;
+                case REM_FORWARD:
+                    Serial.print("forward ");
+                    update_current_pattern_fun_index(true);
+                    break;
+            }
+        }
+        previous_ir_signal = current_millis;
+    }
+}
+
 // Used by patterns {0, 1, 2, 4}
 void update_brightness() {
-    // TODO TODO: store (static) previous brightness, and
-    // allowance for IR integration
-    brightness = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 1);
+    // TODO TODO TODO: is this good?
+    static byte previous_brightness;
+    byte current_brightness = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 1);
+    if (control_to_ir) {
+        if (abs(current_brightness - previous_brightness) >
+                  ANALOG_DEV_TOLERANCE) {
+            #if DEBUG
+            Serial.println("taking back control from IR");
+            #endif
+            control_to_ir = false;
+        }
+        else {
+            return;
+        }
+    }
+    previous_brightness = current_brightness;
+    brightness = current_brightness;
     pixels.setBrightness(brightness);
 }
 
@@ -346,16 +464,20 @@ void update_blue_brightness() {
                                    0, 1023, 255, 0);
 }
 
-// TODO: this is temporary
 void update_np_count() {
+    // TODO: make bi-directional
     if (NP_COUNT == 8) {
         NP_COUNT = 16;
+    }
+    else if (NP_COUNT == 16) {
+        NP_COUNT = 24;
     }
     else {
         NP_COUNT = 8;
         for (int i = NP_COUNT; i < ALL_NP_COUNT; i++) {
             pixels.setPixelColor(i, 0, 0, 0, 0);
         }
+        while (!IrReceiver.isIdle()) { }
         pixels.show();
     }
 }
@@ -390,6 +512,17 @@ void show_pattern_and_timing() {
     return;
 }
 
+void show_ir_and_brightness() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("ir control: ");
+    lcd.print(control_to_ir);
+    lcd.setCursor(0, 1);
+    lcd.print("brightness: ");
+    lcd.print(brightness);
+    return;
+}
+
 
 /* ---------------------------------------------------------
  * SHARED FUNCTIONS                                       */
@@ -409,6 +542,7 @@ void write_RGBw_colors() {
                                     current_rgbw[WHITE_INDEX]);
         }
     }
+    while (!IrReceiver.isIdle()) { }
     pixels.show();
 }
 
@@ -416,6 +550,7 @@ void write_RGBw_zeroes() {
     for (int i = 0; i < NP_COUNT; i++) {
         pixels.setPixelColor(i, 0, 0, 0, 0);
     }
+    while (!IrReceiver.isIdle()) { }
     pixels.show();
 }
 
@@ -432,6 +567,10 @@ void do_strobe_delay() {
 }
 
 bool update_all_devices() {
+    if (ir_timer > IR_CHECK_EVERY) {
+        update_ir();
+        ir_timer = 0;
+    }
     if (re_timer > RE_CHECK_EVERY) {
         update_rotary_encoder();
         update_re_button();
@@ -507,7 +646,7 @@ void all_color_change_pattern_0() {
     update_thumb_pot_1  = update_step_delay;
     update_thumb_pot_2  = update_strobe_delay;
     sw_button_press     = update_np_count;
-    update_LCD          = show_pattern_and_timing;
+    update_LCD          = show_ir_and_brightness;
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
@@ -595,8 +734,6 @@ void all_color_change_pattern_0() {
  *
  *   Avoids making white
  *
- *   Uses gamma correction by default
- *
  */
 
 void all_color_change_pattern_1() {
@@ -615,7 +752,7 @@ void all_color_change_pattern_1() {
     update_thumb_pot_1  = update_step_delay;
     update_thumb_pot_2  = update_strobe_delay;
     sw_button_press     = update_np_count;
-    update_LCD          = show_pattern_and_timing;
+    update_LCD          = show_ir_and_brightness;
 
     gamma_correct_p = true;
 
@@ -676,7 +813,7 @@ void solid_color_pattern() {
     update_thumb_pot_1  = update_green_brightness;
     update_thumb_pot_2  = update_blue_brightness;
     sw_button_press     = update_np_count;
-    update_LCD          = show_pattern_and_timing;
+    update_LCD          = show_ir_and_brightness;
 
     brightness = 255;
     update_brightness();
@@ -693,6 +830,7 @@ void solid_color_pattern() {
         debug_values();
         // stop the step timer from overflowing
         step_timer = 0;
+        // TODO TODO TODO TODO: check it see if they changed first
         write_RGBw_colors();
 
         #if PROFILE
@@ -726,7 +864,7 @@ void warm_light_pattern() {
     update_thumb_pot_1  = nothing_function;
     update_thumb_pot_2  = nothing_function;
     sw_button_press     = update_np_count;
-    update_LCD          = show_pattern_and_timing;
+    update_LCD          = show_ir_and_brightness;
 
     current_rgbw[RED_INDEX]   = 0;
     current_rgbw[GREEN_INDEX] = 0;
@@ -745,6 +883,7 @@ void warm_light_pattern() {
         debug_values();
         // stop the step timer from overflowing
         step_timer = 0;
+        // TODO TODO TODO TODO: check it see if they changed first
         write_RGBw_colors();
 
         #if PROFILE
@@ -776,7 +915,7 @@ PatternFunction pattern_functions[NUM_PATTERNS] = {
  * SETUP AND MAINLOOP                                     */
 
 void setup() {
-  	pinMode(RE_CLK,        INPUT);
+    pinMode(RE_CLK,        INPUT);
     pinMode(RE_DT_LAG,     INPUT);
     pinMode(RE_SW_BUTTON,  INPUT_PULLUP);
 
@@ -786,15 +925,12 @@ void setup() {
     pixels.begin();
     pixels.setBrightness(brightness);
 
-    #if DEBUG
+    // #if DEBUG
     Serial.begin(115200);
     Serial.println("started serial");
-    #endif
+    // #endif
 
-    sbi(ADCSRA, ADPS2);
-    cbi(ADCSRA, ADPS1);
-    cbi(ADCSRA, ADPS0);
-
+    IrReceiver.begin(IR_PIN);
 
     lcd.init();
     lcd.backlight();
@@ -810,9 +946,9 @@ void loop() {
 
     /*
       Each pattern has it's own main loop that will only exit if
-      a pattern change is detected (e.g. through the rotary encoder.
-      At that time, control is returned to this loop to start the
-      process over again with the correct pattern
+      a pattern change is detected (i.e. through the rotary encoder
+      or IR remote). At that time, control is returned to this loop
+      to start the process over again with the correct pattern
                                                                       */
     pattern_changed_p = false;
     pattern_functions[current_pattern_fun_index]();
