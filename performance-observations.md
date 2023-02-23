@@ -24,4 +24,37 @@ pattern 3: 1
 I don't know if it's worth it. Are the analog reads unstable?
 
 
+---
 
+
+To improve performance, I made a macro called `DEBUG_VALUES()`
+that either expands to `debug_values()` or `true` depending on
+the value of `DEBUG`. I wanted to avoid the function call overhead
+of calling `debug_values()` if DEBUG is false in a way that isn't
+ugly. It made no difference whatsoever. I don't know how
+
+---
+
+Testing performance/memory differences betwee DEBUG true and false
+
+without
+3355 time
+1202B
+
+with
+3344 time
+706B
+
+---
+
+Testing difference between using F and not using F
+
+without
+3355 time
+1202B
+
+with
+1300B
+
+
+3225

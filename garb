@@ -1,0 +1,87 @@
+
+#define REM_POWER   69
+#define REM_VOL_UP  70
+#define REM_FUNC    71
+#define REM_BACK    68
+#define REM_PLAY    64
+#define REM_FORWARD 67
+#define REM_DOWN    7
+#define REM_VOL_DWN 21
+#define REM_UP      9
+#define REM_ZERO    22
+#define REM_EQ      25
+#define REM_ST      13
+#define REM_ONE     12
+#define REM_TWO     24
+#define REM_THREE   94
+#define REM_FOUR    4
+#define REM_FIVE    28
+#define REM_SIX     90
+#define REM_SEVEN   66
+#define REM_EIGHT   82
+#define REM_NINE    74
+
+        //
+          case REM_POWER:
+            Serial.println("POWER");
+            break;
+          case REM_VOL_UP:
+            Serial.println("volume up");
+            break;
+          case REM_FUNC:
+            Serial.println("func");
+            break;
+          case REM_BACK:
+            Serial.println("back");
+            break;
+          case REM_PLAY:
+            Serial.println("play");
+            break;
+          case REM_FORWARD:
+            Serial.println("forward");
+            break;
+          case REM_DOWN:
+            Serial.println("down");
+            break;
+          case REM_VOL_DWN:
+            Serial.println("volume down");
+            break;
+          case REM_UP:
+            Serial.println("up");
+            break;
+          case REM_ZERO:
+            Serial.println("zero");
+            break;
+          case REM_EQ:
+            Serial.println("eq");
+            break;
+          case REM_ST:
+            Serial.println("st");
+            break;
+          case REM_ONE:
+            Serial.println("1");
+            break;
+          case REM_TWO:
+            Serial.println("2");
+            break;
+          case REM_THREE:
+            Serial.println("3");
+            break;
+          case REM_FOUR:
+            Serial.println("4");
+            break;
+          case REM_FIVE:
+            Serial.println("5");
+            break;
+          case REM_SIX:
+            Serial.println("6");
+            break;
+          case REM_SEVEN:
+            Serial.println("7");
+            break;
+          case REM_EIGHT:
+            Serial.println("8");
+            break;
+          case REM_NINE:
+            Serial.println("9");
+            break;

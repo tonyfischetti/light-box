@@ -1,12 +1,12 @@
 
 /************************************************************************
  *                                                                      *
+ *  light-box.c                                                         *
  *                                                                      *
+ *    author: tony fischetti <tony.fischetti@gmail.com>                 *
+ *    license: GPL-3                                                    *
  *                                                                      *
- *                                                                      *
- *                                                                      *
- *                                                                      *
- *                                                                      *
+ *    <DESCRIPTIVE TEXT GOES HERE>                                      *
  *                                                                      *
  *                                                                      *
  ************************************************************************/
@@ -25,17 +25,17 @@
 /********************************************************
  * POTENTIAL IMPROVEMENTS                               *
  *                                                      *
- *   - Can I use a macro like DO_DEBUG that,            *
- *     conditionally, sets `debug_values` to true if    *
- *     DEBUG is false. Will avoid function call.        *
- *     Any time savings?                                *
- *   - Do LCD timeout thing                             *
+ *   - Do the previous_brightness thing but with the    *
+ *     other applicable update functions                *
+ *   - Consider a struct holding pattern info like      *
+ *     pattern name, function, and function overrides   *
+ *     That way, the LCD display can show what changed  *
+ *   - Fix bug regarding LCD not turning backlight      *
+ *     back on if control is already away from the IR   *
  *   - Have a pattern with "uniform" brightness         *
  *   - Use `static` where I can                         *
  *   - Use `const` where I can                          *
  *   - Use unsigned data types where I can              *
- *   - Can I use complicated macros to reduce           *
- *     repetition?                                      *
  *   - Test different gamma values                      *
  *   - Have another pattern (like 1) but avoids         *
  *     spending too much time on chartreuse             *
@@ -70,6 +70,8 @@ extern const byte gamma_xlate[];
 // from the IR remote
 #define ANALOG_DEV_TOLERANCE 2
 
+#define LCD_TIMEOUT 20000
+
 // The indices into the `current_rgbw` array for each color
 #define RED_INDEX   0
 #define GREEN_INDEX 1
@@ -90,28 +92,6 @@ extern const byte gamma_xlate[];
 #define INCREMENT true
 #define DECREMENT false
 
-// TODO TODO: how can I move this?
-#define REM_POWER   69
-#define REM_VOL_UP  70
-#define REM_FUNC    71
-#define REM_BACK    68
-#define REM_PLAY    64
-#define REM_FORWARD 67
-#define REM_DOWN    7
-#define REM_VOL_DWN 21
-#define REM_UP      9
-#define REM_ZERO    22
-#define REM_EQ      25
-#define REM_ST      13
-#define REM_ONE     12
-#define REM_TWO     24
-#define REM_THREE   94
-#define REM_FOUR    8
-#define REM_FIVE    28
-#define REM_SIX     90
-#define REM_SEVEN   66
-#define REM_EIGHT   82
-#define REM_NINE    74
 
 
 /* ---------------------------------------------------------
@@ -157,12 +137,28 @@ extern const byte gamma_xlate[];
 
 /* ---------------------------------------------------------
  * IR REMOTE MACROS                                       */
+
 #define REM_POWER   69
 #define REM_VOL_UP  70
-#define REM_VOL_DWN 21
+#define REM_FUNC    71
 #define REM_BACK    68
+#define REM_PLAY    64
 #define REM_FORWARD 67
-
+#define REM_DOWN    7
+#define REM_VOL_DWN 21
+#define REM_UP      9
+#define REM_ZERO    22
+#define REM_EQ      25
+#define REM_ST      13
+#define REM_ONE     12
+#define REM_TWO     24
+#define REM_THREE   94
+/* #define REM_FOUR    8 */
+/* #define REM_FIVE    28 */
+/* #define REM_SIX     90 */
+/* #define REM_SEVEN   66 */
+/* #define REM_EIGHT   82 */
+/* #define REM_NINE    74 */
 
 
 
@@ -196,6 +192,7 @@ elapsedMillis pot_timer;
 elapsedMillis re_timer;
 elapsedMillis step_timer;
 elapsedMillis lcd_timer;
+elapsedMillis lcd_timeout;
 elapsedMillis ir_timer;
 
 #if PROFILE
@@ -256,29 +253,30 @@ OutputUpdateFunction update_LCD         = nothing_function;
 bool debug_values() {
     #if DEBUG
     if (debug_timer > DBUG_EVERY) {
-        Serial.print("Pattern:    ");
+        Serial.print(F("Pattern:    "));
         Serial.println(current_pattern_fun_index);
-        Serial.print("RGBW:       ");
+        Serial.print(F("RGBW:       "));
         Serial.print(current_rgbw[RED_INDEX]);
-        Serial.print(", ");
+        Serial.print(F(", "));
         Serial.print(current_rgbw[GREEN_INDEX]);
-        Serial.print(", ");
+        Serial.print(F(", "));
         Serial.print(current_rgbw[BLUE_INDEX]);
-        Serial.print(", ");
+        Serial.print(F(", "));
         Serial.println(current_rgbw[WHITE_INDEX]);
-        Serial.print("brightness: ");
+        Serial.print(F("brightness: "));
         Serial.println(brightness);
-        Serial.print("gamma:      ");
+        Serial.flush();
+        Serial.print(F("gamma:      "));
         Serial.println(gamma_correct_p);
-        Serial.print("step_timer:  ");
+        Serial.print(F("step_timer:  "));
         Serial.println(step_timer);
-        Serial.print("debug timer: ");
+        Serial.print(F("debug timer: "));
         Serial.println(debug_timer);
-        Serial.print("pot timer:   ");
+        Serial.print(F("pot timer:   "));
         Serial.println(pot_timer);
-        Serial.print("re_timer:    ");
+        Serial.print(F("re_timer:    "));
         Serial.println(re_timer);
-        Serial.print("step delay: ");
+        Serial.print(F("step delay: "));
         Serial.println(step_delay_0);
         Serial.println("-----------------");
         Serial.flush();
@@ -315,7 +313,7 @@ void update_current_pattern_fun_index(bool increment_p) {
         }
     }
     pattern_changed_p = true;
-
+    lcd_timeout = 0;
 }
 
 // This one stays the same for all patterns
@@ -329,12 +327,12 @@ bool update_rotary_encoder() {
         current_state_DT = digitalRead(RE_DT_LAG);
         if (current_state_DT != current_state_CLK) {
             #if DEBUG
-            Serial.println("supposed to increment");
+            Serial.println(F("supposed to increment"));
             #endif
             update_current_pattern_fun_index(true);
         } else {
             #if DEBUG
-            Serial.println("supposed to decrement");
+            Serial.println(F("supposed to decrement"));
             #endif
             update_current_pattern_fun_index(false);
         }
@@ -352,8 +350,9 @@ void update_re_button() {
     if (digitalRead(RE_SW_BUTTON)==LOW) {
         if ((current_millis - previous_sw_button_press) > EPSILON){
             #if DEBUG
-            Serial.println("button clicked. about to run `sw_button_press`");
+            Serial.println(F("button clicked. about to run `sw_button_press`"));
             #endif
+            lcd_timeout = 0;
             sw_button_press();
         }
         previous_sw_button_press = current_millis;
@@ -367,44 +366,63 @@ void update_ir() {
     unsigned long current_millis = millis();
     if (IrReceiver.decode()) {
         IrReceiver.resume();
-        Serial.println("GOT SOMETHING!");
+        lcd_timeout = 0;
         command = IrReceiver.decodedIRData.command;
         #if DEBUG
-        Serial.println("taking back control from IR");
+        Serial.println(F("giving control to IR"));
         #endif
         control_to_ir = true;
         if ((current_millis - previous_ir_signal) > EPSILON) {
-            Serial.print("command was: ");
+            #if DEBUG
+            Serial.print(F("command was: "));
             Serial.println(command);
+            #endif
             switch (command) {
                  case REM_POWER:
-                    Serial.print("POWER ");
                     update_np_count();
                     break;
                 case REM_VOL_UP:
-                    Serial.print("volume up ");
                     if (brightness <= 230)
+                        // TODO TODO: parameterize this
                         brightness += 25;
                     else
                         brightness = 255;
                     pixels.setBrightness(brightness);
                     break;
                 case REM_VOL_DWN:
-                    Serial.print("volume down ");
                     if (brightness >= 25)
+                        // TODO TODO: parameterize this
                         brightness -= 25;
                     else
                         brightness = 0;
                     pixels.setBrightness(brightness);
                     break;
                 case REM_BACK:
-                    Serial.print("back ");
                     update_current_pattern_fun_index(false);
                     break;
                 case REM_FORWARD:
-                    Serial.print("forward ");
                     update_current_pattern_fun_index(true);
                     break;
+                case REM_ST:
+                    gamma_correct_p = !gamma_correct_p;
+                    break;
+                case REM_ZERO:
+                    current_pattern_fun_index = 0;
+                    pattern_changed_p = true;
+                    break;
+                case REM_ONE:
+                    current_pattern_fun_index = 1;
+                    pattern_changed_p = true;
+                    break;
+                case REM_TWO:
+                    current_pattern_fun_index = 2;
+                    pattern_changed_p = true;
+                    break;
+                case REM_THREE:
+                    current_pattern_fun_index = 3;
+                    pattern_changed_p = true;
+                    break;
+                // TODO TODO: update as I create more patterns
             }
         }
         previous_ir_signal = current_millis;
@@ -420,9 +438,10 @@ void update_brightness() {
         if (abs(current_brightness - previous_brightness) >
                   ANALOG_DEV_TOLERANCE) {
             #if DEBUG
-            Serial.println("taking back control from IR");
+            Serial.println(F("taking back control from IR"));
             #endif
             control_to_ir = false;
+            lcd_timeout = 0;
         }
         else {
             return;
@@ -436,12 +455,16 @@ void update_brightness() {
 // Used by patterns {0, 1}
 void update_step_delay() {
     step_delay_0 = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 1);
+    // ?????
+    /* lcd_timeout = 0; */
 }
 
 // TODO TODO: should I just get rid of this?
 // Used by patterns {0, 1, 2}
 void update_strobe_delay() {
     strobe_delay_0 = map(analogRead(THUMB_POT_2_IN), 0, 1023, 255, 0);
+    // ??????
+    /* lcd_timeout = 0; */
 }
 
 // TODO now: reverse these
@@ -450,18 +473,24 @@ void update_strobe_delay() {
 void update_red_brightness() {
     current_rgbw[RED_INDEX] = map(analogRead(THUMB_POT_0_IN),
                                   0, 1023, 255, 0);
+    // ?????
+    /* lcd_timeout = 0; */
 }
 
 // Used by patterns {2}
 void update_green_brightness() {
     current_rgbw[GREEN_INDEX] = map(analogRead(THUMB_POT_1_IN),
                                     0, 1023, 255, 0);
+    // ?????
+    /* lcd_timeout = 0; */
 }
 
 // Used by patterns {2}
 void update_blue_brightness() {
     current_rgbw[BLUE_INDEX] = map(analogRead(THUMB_POT_2_IN),
                                    0, 1023, 255, 0);
+    // ?????
+    /* lcd_timeout = 0; */
 }
 
 void update_np_count() {
@@ -480,11 +509,20 @@ void update_np_count() {
         while (!IrReceiver.isIdle()) { }
         pixels.show();
     }
+    lcd_timeout = 0;
 }
 
 
 /* ---------------------------------------------------------
  * OUTPUT UPDATE FUNCTIONS                                */
+
+void show_home() {
+    lcd.clear();
+    lcd.setCursor(3, 0);
+    lcd.print("Light Box");
+    lcd.setCursor(2, 1);
+    lcd.print("-------------");
+}
 
 void show_pattern_and_free_mem() {
     int freemem = free_ram();
@@ -496,7 +534,6 @@ void show_pattern_and_free_mem() {
     lcd.print("free mem: ");
     lcd.print(freemem);
     lcd.print("B");
-    return;
 }
 
 void show_pattern_and_timing() {
@@ -509,7 +546,20 @@ void show_pattern_and_timing() {
     lcd.print("loop: ");
     lcd.print(current_fun_inner_loop_time);
     #endif
-    return;
+}
+
+void show_free_mem_and_timing() {
+    int freemem = free_ram();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("free mem: ");
+    lcd.print(freemem);
+    lcd.print("B");
+    #if PROFILE
+    lcd.setCursor(0, 1);
+    lcd.print("loop: ");
+    lcd.print(current_fun_inner_loop_time);
+    #endif
 }
 
 void show_ir_and_brightness() {
@@ -520,8 +570,23 @@ void show_ir_and_brightness() {
     lcd.setCursor(0, 1);
     lcd.print("brightness: ");
     lcd.print(brightness);
-    return;
 }
+
+void show_rgb_and_gamma() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("<");
+    lcd.print(current_rgbw[RED_INDEX]);
+    lcd.print(", ");
+    lcd.print(current_rgbw[GREEN_INDEX]);
+    lcd.print(", ");
+    lcd.print(current_rgbw[BLUE_INDEX]);
+    lcd.print(">");
+    lcd.setCursor(0, 1);
+    lcd.print("gamma: ");
+    lcd.print(gamma_correct_p);
+}
+
 
 
 /* ---------------------------------------------------------
@@ -583,7 +648,12 @@ bool update_all_devices() {
         pot_timer = 0;
     }
     if (lcd_timer > LCD_EVERY) {
-        update_LCD();
+        if (lcd_timeout >= LCD_TIMEOUT) {
+            lcd.noBacklight();
+        } else {
+            lcd.backlight();
+            update_LCD();
+        }
         lcd_timer = 0;
     }
     return !pattern_changed_p;
@@ -638,7 +708,7 @@ bool bring_up_color(byte color_index) {
 void all_color_change_pattern_0() {
 
     #if DEBUG
-    Serial.println("starting all_color_change_pattern_0");
+    Serial.println(F("starting all_color_change_pattern_0"));
     #endif
 
     /* ------- SETUP CODE ------- */
@@ -646,7 +716,7 @@ void all_color_change_pattern_0() {
     update_thumb_pot_1  = update_step_delay;
     update_thumb_pot_2  = update_strobe_delay;
     sw_button_press     = update_np_count;
-    update_LCD          = show_ir_and_brightness;
+    update_LCD          = show_home;
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
@@ -721,7 +791,7 @@ void all_color_change_pattern_0() {
 
     /* ------- TEARDOWN CODE ------- */
     #if DEBUG
-    Serial.println("ending all_color_change_pattern_0");
+    Serial.println(F("ending all_color_change_pattern_0"));
     #endif
 }
 
@@ -739,7 +809,7 @@ void all_color_change_pattern_0() {
 void all_color_change_pattern_1() {
 
     #if DEBUG
-    Serial.println("starting all_color_change_pattern_1");
+    Serial.println(F("starting all_color_change_pattern_1"));
     #endif
 
     /* ------- SETUP CODE ------- */
@@ -752,7 +822,7 @@ void all_color_change_pattern_1() {
     update_thumb_pot_1  = update_step_delay;
     update_thumb_pot_2  = update_strobe_delay;
     sw_button_press     = update_np_count;
-    update_LCD          = show_ir_and_brightness;
+    update_LCD          = show_home;
 
     gamma_correct_p = true;
 
@@ -790,7 +860,7 @@ void all_color_change_pattern_1() {
 
     /* ------- TEARDOWN CODE ------- */
     #if DEBUG
-    Serial.println("ending all_color_change_pattern_1");
+    Serial.println(F("ending all_color_change_pattern_1"));
     #endif
 }
 
@@ -805,7 +875,7 @@ void all_color_change_pattern_1() {
 void solid_color_pattern() {
 
     #if DEBUG
-    Serial.println("starting solid_color_pattern");
+    Serial.println(F("starting solid_color_pattern"));
     #endif
 
     /* ------- SETUP CODE ------- */
@@ -813,7 +883,7 @@ void solid_color_pattern() {
     update_thumb_pot_1  = update_green_brightness;
     update_thumb_pot_2  = update_blue_brightness;
     sw_button_press     = update_np_count;
-    update_LCD          = show_ir_and_brightness;
+    update_LCD          = show_rgb_and_gamma;
 
     brightness = 255;
     update_brightness();
@@ -840,7 +910,7 @@ void solid_color_pattern() {
 
     /* ------- TEARDOWN CODE ------- */
     #if DEBUG
-    Serial.println("ending solid_color_pattern");
+    Serial.println(F("ending solid_color_pattern"));
     #endif
 }
 
@@ -856,7 +926,7 @@ void solid_color_pattern() {
 void warm_light_pattern() {
 
     #if DEBUG
-    Serial.println("starting warm_light_pattern");
+    Serial.println(F("starting warm_light_pattern"));
     #endif
 
     /* ------- SETUP CODE ------- */
@@ -864,7 +934,7 @@ void warm_light_pattern() {
     update_thumb_pot_1  = nothing_function;
     update_thumb_pot_2  = nothing_function;
     sw_button_press     = update_np_count;
-    update_LCD          = show_ir_and_brightness;
+    update_LCD          = show_home;
 
     current_rgbw[RED_INDEX]   = 0;
     current_rgbw[GREEN_INDEX] = 0;
@@ -895,7 +965,7 @@ void warm_light_pattern() {
     current_rgbw[WHITE_INDEX] = 0;
 
     #if DEBUG
-    Serial.println("ending warm_light_pattern");
+    Serial.println(F("ending warm_light_pattern"));
     #endif
 }
 
@@ -925,10 +995,10 @@ void setup() {
     pixels.begin();
     pixels.setBrightness(brightness);
 
-    // #if DEBUG
+    #if DEBUG
     Serial.begin(115200);
-    Serial.println("started serial");
-    // #endif
+    Serial.println(F("started serial"));
+    #endif
 
     IrReceiver.begin(IR_PIN);
 
@@ -960,6 +1030,7 @@ void loop() {
 /* ---------------------------------------------------------
  * PROGMEM things                                         */
 
+/*
 // gamma: 2.8
 const byte PROGMEM gamma_xlate[] = {
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -979,8 +1050,8 @@ const byte PROGMEM gamma_xlate[] = {
     177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
     215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255
 };
+*/
 
-/*
 // gamma: 4
 const byte PROGMEM gamma_xlate[] = {
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -1000,6 +1071,5 @@ const byte PROGMEM gamma_xlate[] = {
     152,155,157,160,163,166,169,172,175,178,181,184,187,190,194,197,
     200,203,207,210,214,217,221,224,228,232,236,239,243,247,251,255
 };
-*/
 
 
