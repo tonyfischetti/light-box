@@ -27,6 +27,8 @@
  *                                                      *
  *   - Do the previous_brightness thing but with the    *
  *     other applicable update functions                *
+ *   - Should I use pointers in
+ for update_brightness
  *   - Consider a struct holding pattern info like      *
  *     pattern name, function, and function overrides   *
  *     That way, the LCD display can show what changed  *
@@ -61,10 +63,6 @@ extern const byte gamma_xlate[];
 
 // Total number of available Neopixel (even if they're not all used)
 #define ALL_NP_COUNT 24
-
-// value to change the color by on each step
-// #define STEP_DELTA 5
-#define STEP_DELTA 2
 
 // number of milliseconds to wait for buttons, etc. to settle
 #define EPSILON 250
@@ -226,6 +224,9 @@ byte np_count = 8;
 // Used by all patterns (IR)
 bool gamma_correct_p = true;
 
+// Value to change the color by on each step
+byte step_delta 2
+
 
 /* ---------------------------------------------------------
  * IS THIS HIGHER ORDER PROGRAMMING? IN C?!               */
@@ -297,7 +298,23 @@ int free_ram() {
 
 
 /* ---------------------------------------------------------
- * SENSOR UPDATE FUNCTIONS                                 */
+ * HELPER FUNCTIONS                                        */
+
+// NOTE: has side-effects of mutating `control_to_ir` and
+// resetting lcd_timeout
+bool analog_changed_sufficiently_p(byte previous, byte current) {
+    if (abs(current - previous) > ANALOG_DEV_TOLERANCE) {
+        if (control_to_ir) {
+            #if DEBUG
+            Serial.println(F("taking back control from IR"));
+            #endif
+            control_to_ir = false;
+        }
+        lcd_timeout = 0;
+        return true;
+    }
+    return false;
+}
 
 void update_current_pattern_fun_index(bool increment_p) {
     if (increment_p){
@@ -317,6 +334,34 @@ void update_current_pattern_fun_index(bool increment_p) {
     pattern_changed_p = true;
     lcd_timeout = 0;
 }
+
+// Used by all patterns
+// Changes the number of LED stick that'll light up
+void update_np_count() {
+    // TODO: make bi-directional
+    if (np_count == 8) {
+        np_count = 16;
+    }
+    else if (np_count == 16) {
+        np_count = 24;
+    }
+    else {
+        np_count = 8;
+        for (int i = np_count; i < ALL_NP_COUNT; i++) {
+            pixels.setPixelColor(i, 0, 0, 0, 0);
+        }
+        while (!IrReceiver.isIdle()) { }
+        pixels.show();
+    }
+    lcd_timeout = 0;
+}
+
+
+
+/* ---------------------------------------------------------
+ * SENSOR UPDATE FUNCTIONS                                 */
+
+    /******* DIGITAL *******/
 
 // This one stays the same for all patterns
 bool update_rotary_encoder() {
@@ -433,88 +478,74 @@ void update_ir() {
     }
 }
 
-// Used by patterns {0, 1, 2, 4}
+    /******* ANALOG *******/
+
+// Used by patterns {0, 1, 2, 4} (NtS)
 void update_brightness() {
     // TODO TODO TODO: is this good?
     static byte previous_brightness;
     byte current_brightness = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 1);
-    if (control_to_ir) {
-        if (abs(current_brightness - previous_brightness) >
-                  ANALOG_DEV_TOLERANCE) {
-            #if DEBUG
-            Serial.println(F("taking back control from IR"));
-            #endif
-            control_to_ir = false;
-            lcd_timeout = 0;
-        }
-        else {
-            return;
-        }
+    if (analog_changed_sufficiently_p(previous_brightness,
+                                      current_brightness)) {
+        previous_brightness = current_brightness;
+        brightness = current_brightness;
+        pixels.setBrightness(brightness);
     }
-    previous_brightness = current_brightness;
-    brightness = current_brightness;
-    pixels.setBrightness(brightness);
 }
 
-// Used by patterns {0, 1}
+// Used by patterns {0, 1} (NtS)
 void update_step_delay() {
-    step_delay_0 = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 1);
-    // ?????
-    /* lcd_timeout = 0; */
+    static byte previous_step_delay;
+    byte current_step_delay = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 1);
+    if (analog_changed_sufficiently_p(previous_brightness,
+                                      current_brightness)) {
+        previous_step_delay = current_step_delay;
+        step_delay = current_step_delay;
+    }
 }
 
-// TODO TODO: should I just get rid of this?
-// Used by patterns {0, 1, 2}
-void update_strobe_delay() {
-    strobe_delay_0 = map(analogRead(THUMB_POT_2_IN), 0, 1023, 255, 0);
-    // ??????
-    /* lcd_timeout = 0; */
+// Used by patterns {0, 1} (NtS)
+void update_step_delta() {
+    // TODO TODO: are these appropriate limits?
+    static byte previous_step_delta;
+    byte current_step_delta = map(analogRead(THUMB_POT_2_IN), 0, 1023, 1, 50);
+    if (analog_changed_sufficiently_p(previous_step_delta,
+                                      current_step_delta)) {
+        previous_step_delta = current_step_delta;
+        step_delta = current_step_delta;
+    }
 }
 
-// Used by patterns {2}
+// Used by patterns {2} (NtS)
 void update_red_brightness() {
-    current_rgbw[RED_INDEX] = map(analogRead(THUMB_POT_0_IN),
-                                  0, 1023, 255, 0);
-    // ?????
-    /* lcd_timeout = 0; */
+    static byte previous_red;
+    byte current_red = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 0);
+    if (analog_changed_sufficiently_p(previous_red, current_red)) {
+        previous_red = current_red;
+        current_rgbw[RED_INDEX] = current_red;
+    }
 }
 
-// Used by patterns {2}
+// Used by patterns {2} (NtS)
 void update_green_brightness() {
-    current_rgbw[GREEN_INDEX] = map(analogRead(THUMB_POT_1_IN),
-                                    0, 1023, 255, 0);
-    // ?????
-    /* lcd_timeout = 0; */
+    static byte previous_green;
+    byte current_green = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 0);
+    if (analog_changed_sufficiently_p(previous_green, current_green)) {
+        previous_green = current_green;
+        current_rgbw[GREEN_INDEX] = current_green;
+    }
 }
 
-// Used by patterns {2}
+// Used by patterns {2} (NtS)
 void update_blue_brightness() {
-    current_rgbw[BLUE_INDEX] = map(analogRead(THUMB_POT_2_IN),
-                                   0, 1023, 255, 0);
-    // ?????
-    /* lcd_timeout = 0; */
+    static byte previous_blue;
+    byte current_blue = map(analogRead(THUMB_POT_2_IN), 0, 1023, 255, 0);
+    if (analog_changed_sufficiently_p(previous_blue, current_blue)) {
+        previous_blue = current_blue;
+        current_rgbw[BLUE_INDEX] = current_blue;
+    }
 }
 
-// Used by all patterns
-// Changes the number of LED stick that'll light up
-void update_np_count() {
-    // TODO: make bi-directional
-    if (np_count == 8) {
-        np_count = 16;
-    }
-    else if (np_count == 16) {
-        np_count = 24;
-    }
-    else {
-        np_count = 8;
-        for (int i = np_count; i < ALL_NP_COUNT; i++) {
-            pixels.setPixelColor(i, 0, 0, 0, 0);
-        }
-        while (!IrReceiver.isIdle()) { }
-        pixels.show();
-    }
-    lcd_timeout = 0;
-}
 
 
 /* ---------------------------------------------------------
@@ -669,9 +700,9 @@ bool update_all_devices() {
 
 // TODO TODO TODO: document
 bool bring_down_color(byte color_index) {
-    if (current_rgbw[color_index] >= STEP_DELTA) {
+    if (current_rgbw[color_index] >= step_delta) {
         if (step_timer > step_delay_0) {
-            current_rgbw[color_index] = current_rgbw[color_index] - STEP_DELTA;
+            current_rgbw[color_index] = current_rgbw[color_index] - step_delta;
             write_RGBw_colors();
             // TODO TODO TODO: you again?
             /* do_strobe_delay(); */
@@ -683,9 +714,9 @@ bool bring_down_color(byte color_index) {
 }
 
 bool bring_up_color(byte color_index) {
-    if (current_rgbw[color_index] <= (255 - STEP_DELTA)) {
+    if (current_rgbw[color_index] <= (255 - step_delta)) {
         if (step_timer > step_delay_0) {
-            current_rgbw[color_index] = current_rgbw[color_index] + STEP_DELTA;
+            current_rgbw[color_index] = current_rgbw[color_index] + step_delta;
             write_RGBw_colors();
             // TODO TODO TODO: you again?
             /* do_strobe_delay(); */
@@ -718,7 +749,7 @@ void all_color_change_pattern_0() {
     /* ------- SETUP CODE ------- */
     update_thumb_pot_0  = update_brightness;
     update_thumb_pot_1  = update_step_delay;
-    update_thumb_pot_2  = update_strobe_delay;
+    update_thumb_pot_2  = update_step_delta;
     sw_button_press     = update_np_count;
     update_LCD          = show_home;
 
@@ -824,7 +855,7 @@ void all_color_change_pattern_1() {
 
     update_thumb_pot_0  = update_brightness;
     update_thumb_pot_1  = update_step_delay;
-    update_thumb_pot_2  = update_strobe_delay;
+    update_thumb_pot_2  = update_step_delta;
     sw_button_press     = update_np_count;
     update_LCD          = show_home;
 
