@@ -56,6 +56,9 @@ extern const byte gamma_xlate[];
 #define DEBUG   false
 #define PROFILE false
 
+#define PRO_MICRO true
+#define ARD_UNO false
+
 // Total number of available Neopixel (even if they're not all used)
 #define ALL_NP_COUNT 24
 
@@ -84,6 +87,7 @@ extern const byte gamma_xlate[];
 #define LCD_EVERY       500
 #define IR_CHECK_EVERY  20
 
+// ACHTUNG: NtS: update everytime I add a pattern
 #define NUM_PATTERNS 4
 
 // fix
@@ -98,40 +102,38 @@ extern const byte gamma_xlate[];
  * PIN MACROS                                             */
 
 /* - - FOR PRO MICRO - - - - - - -*/
-// TODO TODO have another set for other board(s)
-
-#define SDA           2   // orange
-#define SCL           3   // periwinkle
-#define BUZZER        4   // dark pink
-#define NEOPIXEL_PIN  5   // sea green
-#define PHOTORESISTOR A7  // (6) yellow
-#define RE_SW_BUTTON  7   // navy
-#define RE_DT_LAG     8   // purple
-#define RE_CLK        9   // green
-
-#define IR_PIN        10  // light pink
-
+#if PRO_MICRO
+#define SDA             2   // orange
+#define SCL             3   // periwinkle
+#define BUZZER          4   // dark pink
+#define NEOPIXEL_PIN    5   // sea green
+#define PHOTORESISTOR   A7  // (6) yellow
+#define RE_SW_BUTTON    7   // navy
+#define RE_DT_LAG       8   // purple
+#define RE_CLK          9   // green
+#define IR_PIN          10  // light pink
 #define THUMB_POT_0_IN  A0
 #define THUMB_POT_1_IN  A1
 #define THUMB_POT_2_IN  A2
+#endif
 
 
 /* - - FOR ARDUINO UNO - - - - - - -*/
-/*
-#define NEOPIXEL_PIN  7
-
-#define RE_CLK        13
-#define RE_DT_LAG     12
-#define RE_SW_BUTTON  11
-
+#if ARD_UNO
+#define SDA             A4
+#define SCL             A5   // periwinkle
+/* #define BUZZER */
+#define NEOPIXEL_PIN    7
+/* #define PHOTORESISTOR */
+#define RE_SW_BUTTON    11
+#define RE_DT_LAG       12
+#define RE_CLK
+/* #define IR_PIN */
 #define THUMB_POT_0_IN  A0
 #define THUMB_POT_1_IN  A1
 #define THUMB_POT_2_IN  A2
-*/
-/* I2C AND IC2 PINS -- */
-// TODO TODO: #define LCD_I2C_ADDRESS
-// #define SDA  A4
-// #define SCL  A5
+#endif
+
 
 
 
@@ -165,9 +167,6 @@ extern const byte gamma_xlate[];
 /* ---------------------------------------------------------
  * GLOBALS                                                */
 
-// Number of NeoPixel LEDS (8 in the stick)
-byte NP_COUNT = 8;
-
 // holds the NeoPixel object
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(ALL_NP_COUNT, NEOPIXEL_PIN,
                                              NEO_GRBW + NEO_KHZ800);
@@ -175,14 +174,10 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(ALL_NP_COUNT, NEOPIXEL_PIN,
 // holds the values for each RGBw channel (globally)
 byte current_rgbw[4] = {255, 255, 255, 0};
 
-// TODO: will this be a sensor value function??
-bool gamma_correct_p = true;
-
 // flag that gets set when the pattern is changed
 bool pattern_changed_p = false;
 
 #if PROFILE
-// TODO: does it have to be a long?
 unsigned long current_fun_inner_loop_time = 0;
 #endif
 
@@ -212,7 +207,7 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 // holds the index (into pattern_functions) for the current
 // pattern's function pointer
-// Used everywhere (rotary encoder)
+// Used by all patterns (rotary encoder and IR)
 byte current_pattern_fun_index = 1;
 
 // used by patterns {0, 1, 2} (potentiometer)
@@ -223,6 +218,13 @@ byte step_delay_0 = 70;
 
 // used by patterns {0, 1} (potentiometer)
 byte strobe_delay_0 = 0;
+
+// Number of NeoPixel LEDS to use
+// Used by all patterns (rotary button and IR)
+byte np_count = 8;
+
+// Used by all patterns (IR)
+bool gamma_correct_p = true;
 
 
 /* ---------------------------------------------------------
@@ -345,8 +347,8 @@ bool update_rotary_encoder() {
 // If the button is pressed, it calls `sw_button_press`, which
 // _can_ change based on the pattern / setting
 void update_re_button() {
-    static long previous_sw_button_press;
-    long current_millis = millis();
+    static unsigned long previous_sw_button_press;
+    unsigned long current_millis = millis();
     if (digitalRead(RE_SW_BUTTON)==LOW) {
         if ((current_millis - previous_sw_button_press) > EPSILON){
             #if DEBUG
@@ -366,7 +368,9 @@ void update_ir() {
     unsigned long current_millis = millis();
     if (IrReceiver.decode()) {
         IrReceiver.resume();
+        // will turn on LCD backlight for any IR signal. want.
         lcd_timeout = 0;
+        // TODO TODO TODO: should I check if it's the right remote??
         command = IrReceiver.decodedIRData.command;
         #if DEBUG
         Serial.println(F("giving control to IR"));
@@ -422,7 +426,7 @@ void update_ir() {
                     current_pattern_fun_index = 3;
                     pattern_changed_p = true;
                     break;
-                // TODO TODO: update as I create more patterns
+                // ACHTUNG: NtS: update
             }
         }
         previous_ir_signal = current_millis;
@@ -467,8 +471,6 @@ void update_strobe_delay() {
     /* lcd_timeout = 0; */
 }
 
-// TODO now: reverse these
-
 // Used by patterns {2}
 void update_red_brightness() {
     current_rgbw[RED_INDEX] = map(analogRead(THUMB_POT_0_IN),
@@ -493,17 +495,19 @@ void update_blue_brightness() {
     /* lcd_timeout = 0; */
 }
 
+// Used by all patterns
+// Changes the number of LED stick that'll light up
 void update_np_count() {
     // TODO: make bi-directional
-    if (NP_COUNT == 8) {
-        NP_COUNT = 16;
+    if (np_count == 8) {
+        np_count = 16;
     }
-    else if (NP_COUNT == 16) {
-        NP_COUNT = 24;
+    else if (np_count == 16) {
+        np_count = 24;
     }
     else {
-        NP_COUNT = 8;
-        for (int i = NP_COUNT; i < ALL_NP_COUNT; i++) {
+        np_count = 8;
+        for (int i = np_count; i < ALL_NP_COUNT; i++) {
             pixels.setPixelColor(i, 0, 0, 0, 0);
         }
         while (!IrReceiver.isIdle()) { }
@@ -593,7 +597,7 @@ void show_rgb_and_gamma() {
  * SHARED FUNCTIONS                                       */
 
 void write_RGBw_colors() {
-    for (byte i = 0; i < NP_COUNT; i++) {
+    for (byte i = 0; i < np_count; i++) {
         if (gamma_correct_p) {
             pixels.setPixelColor(i,
               pgm_read_byte(&gamma_xlate[current_rgbw[RED_INDEX]]),
@@ -612,7 +616,7 @@ void write_RGBw_colors() {
 }
 
 void write_RGBw_zeroes() {
-    for (int i = 0; i < NP_COUNT; i++) {
+    for (int i = 0; i < np_count; i++) {
         pixels.setPixelColor(i, 0, 0, 0, 0);
     }
     while (!IrReceiver.isIdle()) { }
