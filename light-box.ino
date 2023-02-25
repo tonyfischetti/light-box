@@ -25,10 +25,6 @@
 /********************************************************
  * POTENTIAL IMPROVEMENTS                               *
  *                                                      *
- *   - Do the previous_brightness thing but with the    *
- *     other applicable update functions                *
- *   - Should I use pointers in
- for update_brightness
  *   - Consider a struct holding pattern info like      *
  *     pattern name, function, and function overrides   *
  *     That way, the LCD display can show what changed  *
@@ -56,7 +52,7 @@ extern const byte gamma_xlate[];
  * MACROS                                                 */
 
 #define DEBUG   false
-#define PROFILE false
+#define PROFILE true
 
 #define PRO_MICRO true
 #define ARD_UNO false
@@ -142,23 +138,24 @@ extern const byte gamma_xlate[];
 #define REM_VOL_UP  70
 #define REM_FUNC    71
 #define REM_BACK    68
-#define REM_PLAY    64
 #define REM_FORWARD 67
 #define REM_DOWN    7
 #define REM_VOL_DWN 21
 #define REM_UP      9
-#define REM_ZERO    22
 #define REM_EQ      25
 #define REM_ST      13
+#define REM_ZERO    22
 #define REM_ONE     12
 #define REM_TWO     24
 #define REM_THREE   94
 /* #define REM_FOUR    8 */
 /* #define REM_FIVE    28 */
 /* #define REM_SIX     90 */
-/* #define REM_SEVEN   66 */
-/* #define REM_EIGHT   82 */
-/* #define REM_NINE    74 */
+// TODO TODO TODO: temporary
+#define REM_SEVEN   66
+#define REM_EIGHT   82
+#define REM_NINE    74
+/* #define REM_PLAY    64 */
 
 
 
@@ -194,7 +191,7 @@ elapsedMillis inner_loop_time;
 
 // flag indicating whether it is the IR remote
 // or the on-box controls that are in command
-bool control_to_ir = true;
+bool control_to_ir = false;
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -212,10 +209,11 @@ byte current_pattern_fun_index = 1;
 byte brightness = 255;
 
 // used by patterns {0, 1} (potentiometer)
-byte step_delay_0 = 70;
+byte step_delay = 1;
 
+// value to change the color by on each step
 // used by patterns {0, 1} (potentiometer)
-byte strobe_delay_0 = 0;
+byte step_delta = 2;
 
 // Number of NeoPixel LEDS to use
 // Used by all patterns (rotary button and IR)
@@ -224,8 +222,6 @@ byte np_count = 8;
 // Used by all patterns (IR)
 bool gamma_correct_p = true;
 
-// Value to change the color by on each step
-byte step_delta 2
 
 
 /* ---------------------------------------------------------
@@ -280,7 +276,9 @@ bool debug_values() {
         Serial.print(F("re_timer:    "));
         Serial.println(re_timer);
         Serial.print(F("step delay: "));
-        Serial.println(step_delay_0);
+        Serial.println(step_delay);
+        Serial.print(F("step delta: "));
+        Serial.println(step_delta);
         Serial.println("-----------------");
         Serial.flush();
         debug_timer = 0;
@@ -417,33 +415,27 @@ void update_ir() {
         lcd_timeout = 0;
         // TODO TODO TODO: should I check if it's the right remote??
         command = IrReceiver.decodedIRData.command;
-        #if DEBUG
-        Serial.println(F("giving control to IR"));
-        #endif
-        control_to_ir = true;
+        if (!control_to_ir) {
+            #if DEBUG
+            Serial.println(F("giving control to IR"));
+            #endif
+            control_to_ir = true;
+        }
         if ((current_millis - previous_ir_signal) > EPSILON) {
             #if DEBUG
             Serial.print(F("command was: "));
             Serial.println(command);
             #endif
             switch (command) {
-                 case REM_POWER:
+                case REM_POWER:
                     update_np_count();
                     break;
                 case REM_VOL_UP:
-                    if (brightness <= 230)
-                        // TODO TODO: parameterize this
-                        brightness += 25;
-                    else
-                        brightness = 255;
+                    brightness = constrain(brightness + 25, 0, 255);
                     pixels.setBrightness(brightness);
                     break;
                 case REM_VOL_DWN:
-                    if (brightness >= 25)
-                        // TODO TODO: parameterize this
-                        brightness -= 25;
-                    else
-                        brightness = 0;
+                    brightness = constrain(brightness - 25, 0, 255);
                     pixels.setBrightness(brightness);
                     break;
                 case REM_BACK:
@@ -452,9 +444,27 @@ void update_ir() {
                 case REM_FORWARD:
                     update_current_pattern_fun_index(true);
                     break;
-                case REM_ST:
+                case REM_FUNC:
                     gamma_correct_p = !gamma_correct_p;
                     break;
+
+                case REM_UP:
+                    Serial.println("increasing step delay");
+                    step_delay = constrain(step_delay + 5, 1, 255);
+                    break;
+                case REM_DOWN:
+                    Serial.println("Decreasing step delay");
+                    step_delay = constrain(step_delay - 5, 1, 255);
+                    break;
+                case REM_ST:
+                    Serial.println("increasing step delta");
+                    step_delta = constrain(step_delta + 1, 1, 50);
+                    break;
+                case REM_EQ:
+                    Serial.println("Decreasing step delta");
+                    step_delta = constrain(step_delta - 1, 1, 50);
+                    break;
+
                 case REM_ZERO:
                     current_pattern_fun_index = 0;
                     pattern_changed_p = true;
@@ -471,7 +481,21 @@ void update_ir() {
                     current_pattern_fun_index = 3;
                     pattern_changed_p = true;
                     break;
-                // ACHTUNG: NtS: update
+                    // ACHTUNG: NtS: update
+
+                // TODO TODO TODO: temporary
+                case REM_SEVEN:
+                    update_LCD = show_free_mem_and_timing;
+                    break;
+                case REM_EIGHT:
+                    update_LCD = show_ir_and_brightness;
+                    break;
+                case REM_NINE:
+                    update_LCD = show_step_info;
+                    break;
+
+                default:
+                    update_LCD = show_home;
             }
         }
         previous_ir_signal = current_millis;
@@ -482,11 +506,18 @@ void update_ir() {
 
 // Used by patterns {0, 1, 2, 4} (NtS)
 void update_brightness() {
-    // TODO TODO TODO: is this good?
-    static byte previous_brightness;
+    /* I used and `int` here (and the others for a "good" reason). When light
+    box turns on for the first time, the brightness (or other) from the
+    knobs' position won't get set if the knob's position happens to be
+    whatever I arbitrarily set `previous_brightness` to. While it's
+    unlikely, on any one trial, that the two would be within 2 of eachother,
+    over the long run, it's unlikely _not_ to happen.
+    By setting `previous_brightness` negative, I can ensure that the knob's
+    position is _always_ sufficiently different than the previous value     */
+    static int previous_brightness = -100;
     byte current_brightness = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 1);
     if (analog_changed_sufficiently_p(previous_brightness,
-                                      current_brightness)) {
+                current_brightness)) {
         previous_brightness = current_brightness;
         brightness = current_brightness;
         pixels.setBrightness(brightness);
@@ -495,10 +526,10 @@ void update_brightness() {
 
 // Used by patterns {0, 1} (NtS)
 void update_step_delay() {
-    static byte previous_step_delay;
+    static int previous_step_delay = -100;
     byte current_step_delay = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 1);
-    if (analog_changed_sufficiently_p(previous_brightness,
-                                      current_brightness)) {
+    if (analog_changed_sufficiently_p(previous_step_delay,
+                current_step_delay)) {
         previous_step_delay = current_step_delay;
         step_delay = current_step_delay;
     }
@@ -507,10 +538,10 @@ void update_step_delay() {
 // Used by patterns {0, 1} (NtS)
 void update_step_delta() {
     // TODO TODO: are these appropriate limits?
-    static byte previous_step_delta;
-    byte current_step_delta = map(analogRead(THUMB_POT_2_IN), 0, 1023, 1, 50);
+    static int previous_step_delta = - 100;
+    byte current_step_delta = map(analogRead(THUMB_POT_2_IN), 0, 1023, 100, 1);
     if (analog_changed_sufficiently_p(previous_step_delta,
-                                      current_step_delta)) {
+                current_step_delta)) {
         previous_step_delta = current_step_delta;
         step_delta = current_step_delta;
     }
@@ -518,7 +549,7 @@ void update_step_delta() {
 
 // Used by patterns {2} (NtS)
 void update_red_brightness() {
-    static byte previous_red;
+    static int previous_red = -100;
     byte current_red = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 0);
     if (analog_changed_sufficiently_p(previous_red, current_red)) {
         previous_red = current_red;
@@ -528,7 +559,7 @@ void update_red_brightness() {
 
 // Used by patterns {2} (NtS)
 void update_green_brightness() {
-    static byte previous_green;
+    static int previous_green = -100;
     byte current_green = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 0);
     if (analog_changed_sufficiently_p(previous_green, current_green)) {
         previous_green = current_green;
@@ -538,7 +569,7 @@ void update_green_brightness() {
 
 // Used by patterns {2} (NtS)
 void update_blue_brightness() {
-    static byte previous_blue;
+    static int previous_blue = -100;
     byte current_blue = map(analogRead(THUMB_POT_2_IN), 0, 1023, 255, 0);
     if (analog_changed_sufficiently_p(previous_blue, current_blue)) {
         previous_blue = current_blue;
@@ -550,6 +581,8 @@ void update_blue_brightness() {
 
 /* ---------------------------------------------------------
  * OUTPUT UPDATE FUNCTIONS                                */
+
+// TODO TODO TODO: this whole thing smacks of gender
 
 void show_home() {
     lcd.clear();
@@ -622,6 +655,15 @@ void show_rgb_and_gamma() {
     lcd.print(gamma_correct_p);
 }
 
+void show_step_info() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("step_delay: ");
+    lcd.print(step_delay);
+    lcd.setCursor(0, 1);
+    lcd.print("step delta: ");
+    lcd.print(step_delta);
+}
 
 
 /* ---------------------------------------------------------
@@ -631,10 +673,10 @@ void write_RGBw_colors() {
     for (byte i = 0; i < np_count; i++) {
         if (gamma_correct_p) {
             pixels.setPixelColor(i,
-              pgm_read_byte(&gamma_xlate[current_rgbw[RED_INDEX]]),
-              pgm_read_byte(&gamma_xlate[current_rgbw[GREEN_INDEX]]),
-              pgm_read_byte(&gamma_xlate[current_rgbw[BLUE_INDEX]]),
-              pgm_read_byte(&gamma_xlate[current_rgbw[WHITE_INDEX]]));
+                pgm_read_byte(&gamma_xlate[current_rgbw[RED_INDEX]]),
+                pgm_read_byte(&gamma_xlate[current_rgbw[GREEN_INDEX]]),
+                pgm_read_byte(&gamma_xlate[current_rgbw[BLUE_INDEX]]),
+                pgm_read_byte(&gamma_xlate[current_rgbw[WHITE_INDEX]]));
         } else {
             pixels.setPixelColor(i, current_rgbw[RED_INDEX],
                                     current_rgbw[GREEN_INDEX],
@@ -652,18 +694,6 @@ void write_RGBw_zeroes() {
     }
     while (!IrReceiver.isIdle()) { }
     pixels.show();
-}
-
-// TODO: should I just remove this?
-// TODO TODO TODO: don't use delay!!!
-void do_strobe_delay() {
-    return;
-  /* // TODO: review this */
-  /*   if (strobe_delay_0 > 27) { */
-  /*       // TODO: fix */
-  /*       write_RGBw_zeroes(); */
-  /*       delay(strobe_delay_0); */
-  /*   } */
 }
 
 bool update_all_devices() {
@@ -701,11 +731,9 @@ bool update_all_devices() {
 // TODO TODO TODO: document
 bool bring_down_color(byte color_index) {
     if (current_rgbw[color_index] >= step_delta) {
-        if (step_timer > step_delay_0) {
+        if (step_timer > step_delay) {
             current_rgbw[color_index] = current_rgbw[color_index] - step_delta;
             write_RGBw_colors();
-            // TODO TODO TODO: you again?
-            /* do_strobe_delay(); */
             step_timer = 0;
         }
         return true;
@@ -715,11 +743,9 @@ bool bring_down_color(byte color_index) {
 
 bool bring_up_color(byte color_index) {
     if (current_rgbw[color_index] <= (255 - step_delta)) {
-        if (step_timer > step_delay_0) {
+        if (step_timer > step_delay) {
             current_rgbw[color_index] = current_rgbw[color_index] + step_delta;
             write_RGBw_colors();
-            // TODO TODO TODO: you again?
-            /* do_strobe_delay(); */
             step_timer = 0;
         }
         return true;
@@ -735,7 +761,7 @@ bool bring_up_color(byte color_index) {
 
 /* PATTERN 0:
  *
- *   Shifts through all the colors. Speed, strobe, and brightness are
+ *   Shifts through all the colors. Brightness, speed, and step size are
  *   parameterized.
  *
  */
@@ -761,63 +787,63 @@ void all_color_change_pattern_0() {
 
         // first sub-pattern
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(RED_INDEX)) {}
+                debug_values() &&
+                bring_down_color(RED_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(GREEN_INDEX)) {}
+                debug_values() &&
+                bring_down_color(GREEN_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(RED_INDEX)) {}
+                debug_values() &&
+                bring_up_color(RED_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(BLUE_INDEX)) {}
+                debug_values() &&
+                bring_down_color(BLUE_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(GREEN_INDEX)) {}
+                debug_values() &&
+                bring_up_color(GREEN_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(BLUE_INDEX)) {}
+                debug_values() &&
+                bring_up_color(BLUE_INDEX)) {}
 
         // second sub-pattern
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(GREEN_INDEX)) {}
+                debug_values() &&
+                bring_down_color(GREEN_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(BLUE_INDEX)) {}
+                debug_values() &&
+                bring_down_color(BLUE_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(GREEN_INDEX)) {}
+                debug_values() &&
+                bring_up_color(GREEN_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(RED_INDEX)) {}
+                debug_values() &&
+                bring_down_color(RED_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(BLUE_INDEX)) {}
+                debug_values() &&
+                bring_up_color(BLUE_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(RED_INDEX)) {}
+                debug_values() &&
+                bring_up_color(RED_INDEX)) {}
 
         // third sub-pattern
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(BLUE_INDEX)) {}
+                debug_values() &&
+                bring_down_color(BLUE_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(RED_INDEX)) {}
+                debug_values() &&
+                bring_down_color(RED_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(BLUE_INDEX)) {}
+                debug_values() &&
+                bring_up_color(BLUE_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(GREEN_INDEX)) {}
+                debug_values() &&
+                bring_down_color(GREEN_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(RED_INDEX)) {}
+                debug_values() &&
+                bring_up_color(RED_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(GREEN_INDEX)) {}
+                debug_values() &&
+                bring_up_color(GREEN_INDEX)) {}
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -830,11 +856,12 @@ void all_color_change_pattern_0() {
     #endif
 }
 
+
 /* --------------------------------------------------------- */
 
 /* PATTERN 1:
  *
- *   Shifts through all the colors. Speed, strobe, and brightness are
+ *   Shifts through all the colors. Brightness, speed, and step size are
  *   parameterized.
  *
  *   Avoids making white
@@ -870,23 +897,23 @@ void all_color_change_pattern_1() {
         #endif
 
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(GREEN_INDEX)) {}
+                debug_values() &&
+                bring_down_color(GREEN_INDEX)) {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(RED_INDEX))     {}
+                debug_values() &&
+                bring_up_color(RED_INDEX))     {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(BLUE_INDEX))  {}
+                debug_values() &&
+                bring_down_color(BLUE_INDEX))  {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(GREEN_INDEX))   {}
+                debug_values() &&
+                bring_up_color(GREEN_INDEX))   {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_down_color(RED_INDEX))   {}
+                debug_values() &&
+                bring_down_color(RED_INDEX))   {}
         while (update_all_devices() &&
-               debug_values() &&
-               bring_up_color(BLUE_INDEX))    {}
+                debug_values() &&
+                bring_up_color(BLUE_INDEX))    {}
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -898,6 +925,7 @@ void all_color_change_pattern_1() {
     Serial.println(F("ending all_color_change_pattern_1"));
     #endif
 }
+
 
 /* --------------------------------------------------------- */
 
@@ -1016,6 +1044,7 @@ PatternFunction pattern_functions[NUM_PATTERNS] = {
 };
 
 
+
 /* ---------------------------------------------------------
  * SETUP AND MAINLOOP                                     */
 
@@ -1039,10 +1068,7 @@ void setup() {
 
     lcd.init();
     lcd.backlight();
-    lcd.setCursor(3, 0);
-    lcd.print("Light Box");
-    lcd.setCursor(2, 1);
-    lcd.print("-------------");
+    show_home();
 
 }
 
@@ -1068,24 +1094,24 @@ void loop() {
 /*
 // gamma: 2.8
 const byte PROGMEM gamma_xlate[] = {
-    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
-    1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
-    2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  5,  5,  5,
-    5,  6,  6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9,  10,
-    10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
-    17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
-    25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
-    37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
-    51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
-    69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
-    90, 92, 93, 95, 96, 98, 99, 101,102,104,105,107,109,110,112,114,
-    115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
-    144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
-    177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
-    215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255
+0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
+1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
+2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  5,  5,  5,
+5,  6,  6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9,  10,
+10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
+17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
+25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
+37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
+51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
+69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
+90, 92, 93, 95, 96, 98, 99, 101,102,104,105,107,109,110,112,114,
+115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
+144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
+177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
+215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255
 };
-*/
+ */
 
 // gamma: 4
 const byte PROGMEM gamma_xlate[] = {
