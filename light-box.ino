@@ -6,7 +6,13 @@
  *    author: tony fischetti <tony.fischetti@gmail.com>                 *
  *    license: GPL-3                                                    *
  *                                                                      *
- *    <DESCRIPTIVE TEXT GOES HERE>                                      *
+ *    ---------------                                                   *
+ *                                                                      *
+ *    There was once a young man who was very sad. He always stayed     *
+ *    in the dark. Then, one day, he wasn't so sad anymore and          *
+ *    learned that he loves light.                                      *
+ *                                                                      *
+ *    This code goes out to that young man.                             *
  *                                                                      *
  *                                                                      *
  ************************************************************************/
