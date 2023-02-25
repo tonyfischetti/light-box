@@ -23,11 +23,18 @@
 
 
 /********************************************************
- * POTENTIAL IMPROVEMENTS                               *
+ * SOME TODOS                                           *
  *                                                      *
+ *   - Experiment with `MAX_BRIGHTNESS[4]`              *
+ *     especially for green                             *
+ *   - Test with different optimization levels          *
  *   - Consider a struct holding pattern info like      *
  *     pattern name, function, and function overrides   *
  *     That way, the LCD display can show what changed  *
+ *   - Actually, instead of a struct, consider a class  *
+ *     https://cplusplus.com/doc/tutorial/classes/      *
+ *   - Use different DEBUG levels                       *
+ *     (profile these separately)                       *
  *   - Fix bug regarding LCD not turning backlight      *
  *     back on if control is already away from the IR   *
  *   - Have a pattern with "uniform" brightness         *
@@ -168,6 +175,9 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(ALL_NP_COUNT, NEOPIXEL_PIN,
 
 // holds the values for each RGBw channel (globally)
 byte current_rgbw[4] = {255, 255, 255, 0};
+
+// holds the maximum brightness each channel should reach
+byte max_brightnesses[4] = {255, 255, 255, 255};
 
 // flag that gets set when the pattern is changed
 bool pattern_changed_p = false;
@@ -550,7 +560,8 @@ void update_step_delta() {
 // Used by patterns {2} (NtS)
 void update_red_brightness() {
     static int previous_red = -100;
-    byte current_red = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 0);
+    byte current_red = map(analogRead(THUMB_POT_0_IN),
+                           0, 1023, max_brightnesses[RED_INDEX], 0);
     if (analog_changed_sufficiently_p(previous_red, current_red)) {
         previous_red = current_red;
         current_rgbw[RED_INDEX] = current_red;
@@ -560,7 +571,8 @@ void update_red_brightness() {
 // Used by patterns {2} (NtS)
 void update_green_brightness() {
     static int previous_green = -100;
-    byte current_green = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 0);
+    byte current_green = map(analogRead(THUMB_POT_1_IN),
+                             0, 1023, max_brightnesses[GREEN_INDEX], 0);
     if (analog_changed_sufficiently_p(previous_green, current_green)) {
         previous_green = current_green;
         current_rgbw[GREEN_INDEX] = current_green;
@@ -570,7 +582,8 @@ void update_green_brightness() {
 // Used by patterns {2} (NtS)
 void update_blue_brightness() {
     static int previous_blue = -100;
-    byte current_blue = map(analogRead(THUMB_POT_2_IN), 0, 1023, 255, 0);
+    byte current_blue = map(analogRead(THUMB_POT_2_IN),
+                            0, 1023, max_brightnesses[BLUE_INDEX], 0);
     if (analog_changed_sufficiently_p(previous_blue, current_blue)) {
         previous_blue = current_blue;
         current_rgbw[BLUE_INDEX] = current_blue;
@@ -742,7 +755,7 @@ bool bring_down_color(byte color_index) {
 }
 
 bool bring_up_color(byte color_index) {
-    if (current_rgbw[color_index] <= (255 - step_delta)) {
+    if (current_rgbw[color_index] <= (max_brightnesses[color_index] - step_delta)) {
         if (step_timer > step_delay) {
             current_rgbw[color_index] = current_rgbw[color_index] + step_delta;
             write_RGBw_colors();
@@ -752,8 +765,6 @@ bool bring_up_color(byte color_index) {
     }
     return false;
 }
-
-// TODO TODO TODO: can I write `bring_color` that does both??
 
 
 

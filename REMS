@@ -1,0 +1,31 @@
+
+instead of up/down, etc... controling step_delay/step_delta, etc... it should
+control whatever value is mutated by update_thumb_pot....
+
+max green brightness
+
+TEST WITH DIFFERENT OPTIMIZATION LEVELS!
+
+play around with max_brightnesses
+
+
+// first color goes up, second goes down
+bool crossfade_colors(byte color_goes_up, byte color_goes_down) {
+    bool more_up_p = (current_rgbw[color_goes_up] <=
+                       (max_brightnesses[color_goes_up] + step_delta));
+    bool more_down_p = (current_rgbw[color_goes_down] >= step_delta);
+    if (more_up_p || more_down_p) {
+        if (step_timer > step_delay) {
+            if (more_up_p)
+                current_rgbw[color_goes_up] = current_rgbw[color_goes_up] +
+                                                step_delta;
+            if (more_down_p)
+                current_rgbw[color_goes_down] = current_rgbw[color_goes_down] -
+                                                  step_delta;
+            step_timer = 0;
+        }
+        return true;
+    }
+    return false;
+}
+
