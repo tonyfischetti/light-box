@@ -738,26 +738,29 @@ bool update_all_devices() {
 }
 
 
-/* ---------------------------------------------------------
- * SHARED FUNCTIONS THAT LOOP                             */
 
-// TODO TODO TODO: document
-bool bring_down_color(byte color_index) {
-    if (current_rgbw[color_index] >= step_delta) {
-        if (step_timer > step_delay) {
-            current_rgbw[color_index] = current_rgbw[color_index] - step_delta;
-            write_RGBw_colors();
-            step_timer = 0;
-        }
-        return true;
-    }
-    return false;
+/* ---------------------------------------------------------
+ * SHARED FUNCTIONS FOR COLOR SHIFTING                    */
+
+bool room_to_go_p(bool direction, byte color_index) {
+    // UP
+    if (direction)
+        return (current_rgbw[color_index] <=
+                  (max_brightnesses[color_index] - step_delta));
+    else
+        return (current_rgbw[color_index] >= step_delta);
 }
 
-bool bring_up_color(byte color_index) {
-    if (current_rgbw[color_index] <= (max_brightnesses[color_index] - step_delta)) {
+bool move_color(bool direction, byte color_index) {
+    if (room_to_go_p(direction, color_index)) {
         if (step_timer > step_delay) {
-            current_rgbw[color_index] = current_rgbw[color_index] + step_delta;
+            // UP
+            if (direction)
+                current_rgbw[color_index] = current_rgbw[color_index] +
+                                              step_delta;
+            else
+                current_rgbw[color_index] = current_rgbw[color_index] -
+                                              step_delta;
             write_RGBw_colors();
             step_timer = 0;
         }
@@ -799,62 +802,62 @@ void all_color_change_pattern_0() {
         // first sub-pattern
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(RED_INDEX)) {}
+                move_color(DOWN, RED_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(GREEN_INDEX)) {}
+                move_color(DOWN, GREEN_INDEX)) {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(RED_INDEX)) {}
+                move_color(UP, RED_INDEX))     {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(BLUE_INDEX)) {}
+                move_color(DOWN, BLUE_INDEX))  {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(GREEN_INDEX)) {}
+                move_color(UP, GREEN_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(BLUE_INDEX)) {}
+                move_color(UP, BLUE_INDEX))    {}
 
         // second sub-pattern
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(GREEN_INDEX)) {}
+                move_color(DOWN, GREEN_INDEX)) {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(BLUE_INDEX)) {}
+                move_color(DOWN, BLUE_INDEX))  {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(GREEN_INDEX)) {}
+                move_color(UP, GREEN_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(RED_INDEX)) {}
+                move_color(DOWN, RED_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(BLUE_INDEX)) {}
+                move_color(UP, BLUE_INDEX))    {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(RED_INDEX)) {}
+                move_color(UP, RED_INDEX))     {}
 
         // third sub-pattern
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(BLUE_INDEX)) {}
+                move_color(DOWN, BLUE_INDEX))  {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(RED_INDEX)) {}
+                move_color(DOWN, RED_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(BLUE_INDEX)) {}
+                move_color(UP, BLUE_INDEX))    {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(GREEN_INDEX)) {}
+                move_color(DOWN, GREEN_INDEX)) {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(RED_INDEX)) {}
+                move_color(UP, RED_INDEX))     {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(GREEN_INDEX)) {}
+                move_color(UP, GREEN_INDEX))   {}
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -909,22 +912,22 @@ void all_color_change_pattern_1() {
 
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(GREEN_INDEX)) {}
+                move_color(DOWN, GREEN_INDEX)) {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(RED_INDEX))     {}
+                move_color(UP, RED_INDEX))     {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(BLUE_INDEX))  {}
+                move_color(DOWN, BLUE_INDEX))  {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(GREEN_INDEX))   {}
+                move_color(UP, GREEN_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_down_color(RED_INDEX))   {}
+                move_color(DOWN, RED_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                bring_up_color(BLUE_INDEX))    {}
+                move_color(UP, BLUE_INDEX))    {}
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
