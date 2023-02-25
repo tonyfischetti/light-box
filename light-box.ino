@@ -757,9 +757,9 @@ bool room_to_go_p(bool direction, byte color_index) {
         return (current_rgbw[color_index] >= step_delta);
 }
 
-bool move_color(bool direction, byte color_index) {
-    if (room_to_go_p(direction, color_index)) {
-        if (step_timer > step_delay) {
+bool move_color(bool direction, byte color_index, bool reset_timer_p=true) {
+    if (step_timer > step_delay) {
+        if (room_to_go_p(direction, color_index)) {
             // UP
             if (direction)
                 current_rgbw[color_index] = current_rgbw[color_index] +
@@ -768,35 +768,29 @@ bool move_color(bool direction, byte color_index) {
                 current_rgbw[color_index] = current_rgbw[color_index] -
                                               step_delta;
             write_RGBw_colors();
-            step_timer = 0;
+            if (reset_timer_p)
+                step_timer = 0;
+            return true;
         }
-        return true;
+        else
+            return false;
     }
-    return false;
+    // we have to assume there's more to go
+    return true;
 }
 
-bool move_colors(byte n_colors, byte* color_indices) {
-    bool all_done_p = true;
-    bool reset_step_timer_p = false;
-    for (int i = 0; i < n_colors; i++) {
-        byte current_color = color_indices[i];
-        if (room_to_go_p(direction, current_color)) {
-            if (step_timer > step_delay) {
-                if (direction)
-                    current_rgbw[current_color] = current_rgbw[current_color] +
-                                                   step_delta;
-                else
-                    current_rgbw[current_color] = current_rgbw[current_color] -
-                                                   step_delta;
-                write_RGBw_colors();
-                reset_step_timer_p = true;
-            }
-            all_done_p = false;
+bool move_colors(bool direction, byte n_colors, byte* color_indices) {
+    bool continue_p = false;
+    if (step_timer > step_delay) {
+        for (int i = 0; i < n_colors; i++) {
+            byte current_color = color_indices[i];
+            if (move_color(direction, current_color, false))
+                continue_p = true;
         }
-    }
-    if (reset_step_timer_p)
         step_timer = 0;
-    return !all_done_p;
+        return continue_p;
+    }
+    return true;
 }
 
 
