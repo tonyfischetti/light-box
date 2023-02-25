@@ -775,6 +775,30 @@ bool move_color(bool direction, byte color_index) {
     return false;
 }
 
+bool move_colors(byte n_colors, byte* color_indices) {
+    bool all_done_p = true;
+    bool reset_step_timer_p = false;
+    for (int i = 0; i < n_colors; i++) {
+        byte current_color = color_indices[i];
+        if (room_to_go_p(direction, current_color)) {
+            if (step_timer > step_delay) {
+                if (direction)
+                    current_rgbw[current_color] = current_rgbw[current_color] +
+                                                   step_delta;
+                else
+                    current_rgbw[current_color] = current_rgbw[current_color] -
+                                                   step_delta;
+                write_RGBw_colors();
+                reset_step_timer_p = true;
+            }
+            all_done_p = false;
+        }
+    }
+    if (reset_step_timer_p)
+        step_timer = 0;
+    return !all_done_p;
+}
+
 
 
 /* --------------------------------------------------------- */
@@ -895,7 +919,7 @@ void all_color_change_pattern_1() {
     #endif
 
     /* ------- SETUP CODE ------- */
-    bring_down_color(RED_INDEX); // starts at 011
+    move_color(DOWN, RED_INDEX); // starts at 011
     current_rgbw[RED_INDEX]   = 0;
     current_rgbw[GREEN_INDEX] = 255;
     current_rgbw[BLUE_INDEX]  = 255;
