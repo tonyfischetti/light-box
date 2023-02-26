@@ -56,5 +56,3 @@ without
 with
 1300B
 
-
-3225
