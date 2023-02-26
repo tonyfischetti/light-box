@@ -31,6 +31,8 @@
 /********************************************************
  * SOME TODOS                                           *
  *                                                      *
+ *   - The ANALOG_DEV_TOLERANCE thing should check      *
+ *     the un"mapped" analog output!!                   *
  *   - Experiment with `MAX_BRIGHTNESS[4]`              *
  *     especially for green                             *
  *   - Test with different optimization levels          *
@@ -161,10 +163,10 @@ extern const byte gamma_xlate[];
 #define REM_ONE     12
 #define REM_TWO     24
 #define REM_THREE   94
-/* #define REM_FOUR    8 */
-/* #define REM_FIVE    28 */
-/* #define REM_SIX     90 */
 // TODO TODO TODO: temporary
+#define REM_FOUR    8
+#define REM_FIVE    28
+#define REM_SIX     90
 #define REM_SEVEN   66
 #define REM_EIGHT   82
 #define REM_NINE    74
@@ -746,7 +748,7 @@ bool update_all_devices() {
 
 
 /* ---------------------------------------------------------
- * SHARED FUNCTIONS FOR COLOR SHIFTING                    */
+ * SHARED FUNCTIONS FOR COLOR MANIPULATION                 */
 
 bool room_to_go_p(bool direction, byte color_index) {
     // UP
@@ -757,7 +759,7 @@ bool room_to_go_p(bool direction, byte color_index) {
         return (current_rgbw[color_index] >= step_delta);
 }
 
-bool move_color(bool direction, byte color_index, bool reset_timer_p=true) {
+bool shift_color(bool direction, byte color_index, bool reset_timer_p=true) {
     if (step_timer > step_delay) {
         if (room_to_go_p(direction, color_index)) {
             // UP
@@ -779,12 +781,12 @@ bool move_color(bool direction, byte color_index, bool reset_timer_p=true) {
     return true;
 }
 
-bool move_colors(bool direction, byte n_colors, byte* color_indices) {
+bool shift_colors(bool direction, byte n_colors, byte* color_indices) {
     bool continue_p = false;
     if (step_timer > step_delay) {
         for (int i = 0; i < n_colors; i++) {
             byte current_color = color_indices[i];
-            if (move_color(direction, current_color, false))
+            if (shift_color(direction, current_color, false))
                 continue_p = true;
         }
         step_timer = 0;
@@ -826,62 +828,62 @@ void all_color_change_pattern_0() {
         // first sub-pattern
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, RED_INDEX))   {}
+                shift_color(DOWN, RED_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, GREEN_INDEX)) {}
+                shift_color(DOWN, GREEN_INDEX)) {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, RED_INDEX))     {}
+                shift_color(UP, RED_INDEX))     {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, BLUE_INDEX))  {}
+                shift_color(DOWN, BLUE_INDEX))  {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, GREEN_INDEX))   {}
+                shift_color(UP, GREEN_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, BLUE_INDEX))    {}
+                shift_color(UP, BLUE_INDEX))    {}
 
         // second sub-pattern
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, GREEN_INDEX)) {}
+                shift_color(DOWN, GREEN_INDEX)) {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, BLUE_INDEX))  {}
+                shift_color(DOWN, BLUE_INDEX))  {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, GREEN_INDEX))   {}
+                shift_color(UP, GREEN_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, RED_INDEX))   {}
+                shift_color(DOWN, RED_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, BLUE_INDEX))    {}
+                shift_color(UP, BLUE_INDEX))    {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, RED_INDEX))     {}
+                shift_color(UP, RED_INDEX))     {}
 
         // third sub-pattern
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, BLUE_INDEX))  {}
+                shift_color(DOWN, BLUE_INDEX))  {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, RED_INDEX))   {}
+                shift_color(DOWN, RED_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, BLUE_INDEX))    {}
+                shift_color(UP, BLUE_INDEX))    {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, GREEN_INDEX)) {}
+                shift_color(DOWN, GREEN_INDEX)) {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, RED_INDEX))     {}
+                shift_color(UP, RED_INDEX))     {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, GREEN_INDEX))   {}
+                shift_color(UP, GREEN_INDEX))   {}
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -913,7 +915,7 @@ void all_color_change_pattern_1() {
     #endif
 
     /* ------- SETUP CODE ------- */
-    move_color(DOWN, RED_INDEX); // starts at 011
+    shift_color(DOWN, RED_INDEX); // starts at 011
     current_rgbw[RED_INDEX]   = 0;
     current_rgbw[GREEN_INDEX] = 255;
     current_rgbw[BLUE_INDEX]  = 255;
@@ -934,22 +936,22 @@ void all_color_change_pattern_1() {
 
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, GREEN_INDEX)) {}
+                shift_color(DOWN, GREEN_INDEX)) {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, RED_INDEX))     {}
+                shift_color(UP, RED_INDEX))     {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, BLUE_INDEX))  {}
+                shift_color(DOWN, BLUE_INDEX))  {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, GREEN_INDEX))   {}
+                shift_color(UP, GREEN_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(DOWN, RED_INDEX))   {}
+                shift_color(DOWN, RED_INDEX))   {}
         while (update_all_devices() &&
                 debug_values() &&
-                move_color(UP, BLUE_INDEX))    {}
+                shift_color(UP, BLUE_INDEX))    {}
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -1173,8 +1175,8 @@ const byte PROGMEM gamma_xlate[] = {
 
 // gamma: 0.5
 const byte PROGMEM gamma_xlate[] = {
-    0,  16, 23, 28, 32, 36, 39, 42, 45, 48, 50, 53, 55, 58, 60, 62, 
-    64, 66, 68, 70, 71, 73, 75, 77, 78, 80, 81, 83, 84, 86, 87, 89, 
+    0,  16, 23, 28, 32, 36, 39, 42, 45, 48, 50, 53, 55, 58, 60, 62,
+    64, 66, 68, 70, 71, 73, 75, 77, 78, 80, 81, 83, 84, 86, 87, 89,
     90, 92, 93, 94, 96, 97, 98, 100,101,102,103,105,106,107,108,109,
     111,112,113,114,115,116,117,118,119,121,122,123,124,125,126,127,
     128,129,130,131,132,133,134,135,135,136,137,138,139,140,141,142,
@@ -1190,3 +1192,5 @@ const byte PROGMEM gamma_xlate[] = {
     239,240,240,241,241,242,242,243,243,244,244,245,245,246,246,247,
     247,248,248,249,249,250,250,251,251,252,252,253,253,254,254,255
 };
+
+
