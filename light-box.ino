@@ -866,7 +866,7 @@ void update_off_length() {
 /* ---------------------------------------------------------
  * SHARED FUNCTIONS                                       */
 
-void show_RGBw_colors() {
+void display_RGBw_colors() {
     for (byte i = 0; i < np_count; i++) {
         if (gamma_correct_p) {
             pixels.setPixelColor(i,
@@ -885,7 +885,7 @@ void show_RGBw_colors() {
     pixels.show();
 }
 
-void show_RGBw_zeroes() {
+void display_RGBw_zeroes() {
     for (int i = 0; i < np_count; i++) {
         pixels.setPixelColor(i, 0, 0, 0, 0);
     }
@@ -898,7 +898,7 @@ void show_exact_color(byte R, byte G, byte B, byte W) {
     current_rgbw[GREEN_INDEX] = G;
     current_rgbw[BLUE_INDEX]  = B;
     current_rgbw[WHITE_INDEX] = W;
-    show_RGBw_colors();
+    display_RGBw_colors();
 }
 
 bool update_all_devices() {
@@ -953,7 +953,7 @@ bool shift_color(bool direction, byte color_index, bool reset_timer_p=true) {
             else
                 current_rgbw[color_index] = current_rgbw[color_index] -
                                               step_delta;
-            show_RGBw_colors();
+            display_RGBw_colors();
             if (reset_timer_p)
                 step_timer = 0;
             return true;
@@ -1219,7 +1219,7 @@ void solid_color_pattern() {
     force_update_p = false;
     brightness = 255;
     pixels.setBrightness(brightness);
-    show_RGBw_colors();
+    display_RGBw_colors();
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
@@ -1232,7 +1232,7 @@ void solid_color_pattern() {
         // stop the step timer from overflowing
         step_timer = 0;
         // TODO TODO TODO TODO: check it see if they changed first
-        show_RGBw_colors();
+        display_RGBw_colors();
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -1282,7 +1282,7 @@ void warm_light_pattern() {
     current_rgbw[BLUE_INDEX]  = 0;
     current_rgbw[WHITE_INDEX] = 255;
 
-    show_RGBw_colors();
+    display_RGBw_colors();
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
@@ -1295,7 +1295,7 @@ void warm_light_pattern() {
         // stop the step timer from overflowing
         step_timer = 0;
         // TODO TODO TODO TODO: check it see if they changed first
-        show_RGBw_colors();
+        display_RGBw_colors();
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -1351,7 +1351,7 @@ void testing_pattern() {
         while (update_all_devices() &&
                 debug_values() &&
                 hold_on())                 {}
-        show_RGBw_zeroes();
+        display_RGBw_zeroes();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
@@ -1362,7 +1362,7 @@ void testing_pattern() {
         while (update_all_devices() &&
                 debug_values() &&
                 hold_on())                 {}
-        show_RGBw_zeroes();
+        display_RGBw_zeroes();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
@@ -1373,7 +1373,7 @@ void testing_pattern() {
         while (update_all_devices() &&
                 debug_values() &&
                 hold_on())                 {}
-        show_RGBw_zeroes();
+        display_RGBw_zeroes();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
