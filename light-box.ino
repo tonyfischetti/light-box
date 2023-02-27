@@ -207,7 +207,8 @@ elapsedMillis inner_loop_time;
 // or the on-box controls that are in command
 bool control_to_ir = false;
 
-// TODO TODO TODO: document
+// when we start a new pattern, etc... we need to
+//force update sensor values
 bool force_update_p = false;
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
@@ -232,7 +233,7 @@ byte step_delay = 1;
 // used by patterns {0, 1} (potentiometer)
 byte step_delta = 2;
 
-// TODO TODO TODO NOW: document
+// needed for strobe effects
 unsigned int on_length = 100;
 unsigned int off_length = 100;
 
@@ -1082,8 +1083,8 @@ void all_color_change_pattern_0() {
     rem_vol_down        = mutate_brightness_down;
     rem_up              = mutate_step_delay_up;
     rem_down            = mutate_step_delay_down;
-    rem_st              = mutate_step_delay_up;
-    rem_eq              = mutate_step_delay_down;
+    rem_st              = mutate_step_delta_up;
+    rem_eq              = mutate_step_delta_down;
 
     force_update_p = true;
     update_all_devices();
@@ -1199,8 +1200,8 @@ void all_color_change_pattern_1() {
     rem_vol_down        = mutate_brightness_down;
     rem_up              = mutate_step_delay_up;
     rem_down            = mutate_step_delay_down;
-    rem_st              = mutate_step_delay_up;
-    rem_eq              = mutate_step_delay_down;
+    rem_st              = mutate_step_delta_up;
+    rem_eq              = mutate_step_delta_down;
 
     force_update_p = true;
     update_all_devices();
@@ -1471,13 +1472,13 @@ void hsv_testing_pattern() {
     update_thumb_pot_1  = update_step_delay;
     update_thumb_pot_2  = update_step_delta;
     sw_button_press     = update_np_count;
-    update_LCD          = show_home;
+    update_LCD          = show_rgb_and_gamma;
     rem_vol_up          = mutate_brightness_up;
     rem_vol_down        = mutate_brightness_down;
     rem_up              = mutate_step_delay_up;
     rem_down            = mutate_step_delay_down;
-    rem_st              = mutate_step_delay_up;
-    rem_eq              = mutate_step_delay_down;
+    rem_st              = mutate_step_delta_up;
+    rem_eq              = mutate_step_delta_down;
 
     static unsigned int hue = 0;
 

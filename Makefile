@@ -2,8 +2,8 @@ ARDUINO_DIR = /usr/share/arduino
 ARDMK_DIR = ~/.arduino-makefile
 BOARD_TAG = leonardo
 ARCHITECTURE  = avr
-# OR THE OTHER ONE?
 MONITOR_PORT  = /dev/ttyACM0
+AVRDUDE_CONF = /usr/share/arduino/hardware/tools/avrdude.conf
 
 ARDUINO_LIBS = Adafruit_NeoPixel elapsedMillis Wire LiquidCrystal_I2C IRremote
 
