@@ -91,7 +91,7 @@ extern const byte gamma_xlate[];
 #define IR_CHECK_EVERY  20
 
 // ACHTUNG: NtS: update everytime I add a pattern
-#define NUM_PATTERNS 5
+#define NUM_PATTERNS 6
 
 // fix
 #define UP        true
@@ -180,6 +180,10 @@ byte current_rgbw[4] = {255, 255, 255, 0};
 
 // holds the maximum brightness each channel should reach
 byte max_brightnesses[4] = {255, 255, 255, 255};
+
+// TODO TODO TODO TODO: I don't need this when I have the function that
+//                      sets the current_rgb elements from HSV
+unsigned int hue = 0;
 
 // flag that gets set when the pattern is changed
 bool pattern_changed_p = false;
@@ -735,6 +739,10 @@ void update_ir() {
                     pattern_changed_p = true;
                     break;
                     // ACHTUNG: NtS: update
+                case REM_FIVE:
+                    current_pattern_fun_index = 5;
+                    pattern_changed_p = true;
+                    break;
 
                 // TODO TODO TODO: temporary
                 case REM_SEVEN:
@@ -893,12 +901,28 @@ void display_RGBw_zeroes() {
     pixels.show();
 }
 
-void show_exact_color(byte R, byte G, byte B, byte W) {
+void display_exact_color(byte R, byte G, byte B, byte W) {
     current_rgbw[RED_INDEX]   = R;
     current_rgbw[GREEN_INDEX] = G;
     current_rgbw[BLUE_INDEX]  = B;
     current_rgbw[WHITE_INDEX] = W;
     display_RGBw_colors();
+}
+
+// TODO TODO TODO TODO: mention that it bypasses current_rgb
+// TODO TODO TODO TODO: it doesn't use the same gamma correction rn
+// TODO TODO TODO TODO: I can use the code from
+//                     `Adafruit_NeoPixel::setPixelColor` to get the
+//                      RGB values back
+void display_hsv(unsigned int h, unsigned int s=255, unsigned int v=255) {
+    for (int i = 0; i < np_count; i++) {
+        if (gamma_correct_p)
+            pixels.setPixelColor(i, pixels.gamma32(pixels.ColorHSV(h, s, v)));
+        else
+            pixels.setPixelColor(i, pixels.ColorHSV(h, s, v));
+    }
+    while (!IrReceiver.isIdle()) { }
+    pixels.show();
 }
 
 bool update_all_devices() {
@@ -976,6 +1000,15 @@ bool shift_colors(bool direction, byte n_colors, byte* color_indices) {
         step_timer = 0;
         return continue_p;
     }
+    return true;
+}
+
+bool shift_hue(bool reset_timer_p=true) {
+    if (step_timer > step_delay) {
+        display_hsv(hue);
+        return ((++hue) != 0);
+    }
+    // we have to assume there's more to go
     return true;
 }
 
@@ -1346,7 +1379,7 @@ void testing_pattern() {
         #endif
 
         // TODO TODO TODO TODO NOW: reduce code duplication
-        show_exact_color(255, 0, 121, 0);
+        display_exact_color(255, 0, 121, 0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
@@ -1357,7 +1390,7 @@ void testing_pattern() {
                 debug_values() &&
                 hold_off())                {}
 
-        show_exact_color(255, 0, 255, 0);
+        display_exact_color(255, 0, 255, 0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
@@ -1368,7 +1401,7 @@ void testing_pattern() {
                 debug_values() &&
                 hold_off())                {}
 
-        show_exact_color(0, 0, 255, 0);
+        display_exact_color(0, 0, 255, 0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
@@ -1392,6 +1425,63 @@ void testing_pattern() {
 }
 
 
+
+/* --------------------------------------------------------- */
+
+/* PATTERN 5:
+ *
+ *   TESTING HSV
+ *
+ */
+
+void hsv_testing_pattern() {
+
+    #if DEBUG
+    Serial.println(F("starting hsv testing pattern"));
+    #endif
+
+    /* ------- SETUP CODE ------- */
+    update_thumb_pot_0  = update_brightness;
+    update_thumb_pot_1  = update_step_delay;
+    update_thumb_pot_2  = update_step_delta;
+    sw_button_press     = update_np_count;
+    update_LCD          = show_home;
+    rem_vol_up          = mutate_brightness_up;
+    rem_vol_down        = mutate_brightness_down;
+    rem_up              = mutate_step_delay_up;
+    rem_down            = mutate_step_delay_down;
+    rem_st              = mutate_step_delay_up;
+    rem_eq              = mutate_step_delay_down;
+
+    /* static unsigned int hue = 0; */
+
+    /* ------- PATTERN LOOP ------- */
+    while (!pattern_changed_p){
+        #if PROFILE
+        inner_loop_time = 0;
+        #endif
+
+        // this could be written more simply since the hue was
+        // designed to overflow. but, then, we couldn't get the
+        // time it takes to complete a cycle
+        while (update_all_devices() &&
+                debug_values() &&
+                shift_hue())            {};
+
+        #if PROFILE
+        current_fun_inner_loop_time = inner_loop_time;
+        #endif
+    }
+
+    /* ------- TEARDOWN CODE ------- */
+    #if DEBUG
+    Serial.println(F("ending hsv testing pattern"));
+    #endif
+
+}
+
+
+
 /* ---------------------------------------------------------
  * PATTERN FUNCTION ARRAY                                 */
 
@@ -1400,7 +1490,8 @@ PatternFunction pattern_functions[NUM_PATTERNS] = {
     all_color_change_pattern_1,
     solid_color_pattern,
     warm_light_pattern,
-    testing_pattern
+    testing_pattern,
+    hsv_testing_pattern
 };
 
 
