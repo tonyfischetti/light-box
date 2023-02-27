@@ -6,11 +6,6 @@
 
 import math
 
-
-myGamma = .8
-steps = 256
-
-
 def gamma(nsteps, gamma):
     gammaedUp = [math.pow(x, gamma) for x in range(nsteps)]
     return [x/max(gammaedUp) for x in gammaedUp]
@@ -20,6 +15,8 @@ def rounder(topValue, gammas):
 
 
 if __name__ == "__main__":
+    myGamma = 2.8
+    steps = 256
     with open("gamma.h", "w") as output:
         output.write("// gamma: {}\n".format(myGamma))
         output.write("const byte PROGMEM gamma_xlate[] = {\n    ")
