@@ -1,4 +1,8 @@
 
+Try taking DEBUG and PROFILE out of the ino file and adding the line
+to the Makefile (e.g. `-DDEBUG`, `-DPROFILE`)
+The `#if`s have to be changed to `#ifdef`s, in that case
+
 max green brightness
 
 TEST WITH DIFFERENT OPTIMIZATION LEVELS!

@@ -34,11 +34,6 @@
  *   - Experiment with `MAX_BRIGHTNESS[4]`              *
  *     especially for green                             *
  *   - Test with different optimization levels          *
- *   - Consider a struct holding pattern info like      *
- *     pattern name, function, and function overrides   *
- *     That way, the LCD display can show what changed  *
- *   - Actually, instead of a struct, consider a class  *
- *     https://cplusplus.com/doc/tutorial/classes/      *
  *   - Use different DEBUG levels                       *
  *     (profile these separately)                       *
  *   - Fix bug regarding LCD not turning backlight      *
@@ -127,7 +122,7 @@ extern const byte gamma_xlate[];
 
 
 /* - - FOR ARDUINO UNO - - - - - - -*/
-#if ARDUINO_AVR_UNO
+#ifdef ARDUINO_AVR_UNO
 #define SDA             A4
 #define SCL             A5   // periwinkle
 /* #define BUZZER */
@@ -500,6 +495,8 @@ void show_on_and_off_length() {
 // TODO TODO TODO: check all these step sizes
 
 // TODO TODO TODO: explain why the LCD screen overrides are here!
+// (because what it shows is specific to the function bound to the
+// key, not the actual key that is pressed)
 
 void mutate_brightness_up() {
     brightness = constrain(brightness + 25, 0, 255);
@@ -869,7 +866,7 @@ void update_off_length() {
 /* ---------------------------------------------------------
  * SHARED FUNCTIONS                                       */
 
-void write_RGBw_colors() {
+void show_RGBw_colors() {
     for (byte i = 0; i < np_count; i++) {
         if (gamma_correct_p) {
             pixels.setPixelColor(i,
@@ -888,7 +885,7 @@ void write_RGBw_colors() {
     pixels.show();
 }
 
-void write_RGBw_zeroes() {
+void show_RGBw_zeroes() {
     for (int i = 0; i < np_count; i++) {
         pixels.setPixelColor(i, 0, 0, 0, 0);
     }
@@ -896,12 +893,12 @@ void write_RGBw_zeroes() {
     pixels.show();
 }
 
-void write_exact_color(byte R, byte G, byte B, byte W) {
+void show_exact_color(byte R, byte G, byte B, byte W) {
     current_rgbw[RED_INDEX]   = R;
     current_rgbw[GREEN_INDEX] = G;
     current_rgbw[BLUE_INDEX]  = B;
     current_rgbw[WHITE_INDEX] = W;
-    write_RGBw_colors();
+    show_RGBw_colors();
 }
 
 bool update_all_devices() {
@@ -956,7 +953,7 @@ bool shift_color(bool direction, byte color_index, bool reset_timer_p=true) {
             else
                 current_rgbw[color_index] = current_rgbw[color_index] -
                                               step_delta;
-            write_RGBw_colors();
+            show_RGBw_colors();
             if (reset_timer_p)
                 step_timer = 0;
             return true;
@@ -1222,7 +1219,7 @@ void solid_color_pattern() {
     force_update_p = false;
     brightness = 255;
     pixels.setBrightness(brightness);
-    write_RGBw_colors();
+    show_RGBw_colors();
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
@@ -1235,7 +1232,7 @@ void solid_color_pattern() {
         // stop the step timer from overflowing
         step_timer = 0;
         // TODO TODO TODO TODO: check it see if they changed first
-        write_RGBw_colors();
+        show_RGBw_colors();
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -1285,7 +1282,7 @@ void warm_light_pattern() {
     current_rgbw[BLUE_INDEX]  = 0;
     current_rgbw[WHITE_INDEX] = 255;
 
-    write_RGBw_colors();
+    show_RGBw_colors();
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p) {
@@ -1298,7 +1295,7 @@ void warm_light_pattern() {
         // stop the step timer from overflowing
         step_timer = 0;
         // TODO TODO TODO TODO: check it see if they changed first
-        write_RGBw_colors();
+        show_RGBw_colors();
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -1349,34 +1346,34 @@ void testing_pattern() {
         #endif
 
         // TODO TODO TODO TODO NOW: reduce code duplication
-        write_exact_color(255, 0, 121, 0);
+        show_exact_color(255, 0, 121, 0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
                 hold_on())                 {}
-        write_RGBw_zeroes();
+        show_RGBw_zeroes();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
                 hold_off())                {}
 
-        write_exact_color(255, 0, 255, 0);
+        show_exact_color(255, 0, 255, 0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
                 hold_on())                 {}
-        write_RGBw_zeroes();
+        show_RGBw_zeroes();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
                 hold_off())                {}
 
-        write_exact_color(0, 0, 255, 0);
+        show_exact_color(0, 0, 255, 0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
                 hold_on())                 {}
-        write_RGBw_zeroes();
+        show_RGBw_zeroes();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
