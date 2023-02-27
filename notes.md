@@ -1,18 +1,52 @@
 
-pro micro has:
-  5 interrupt pins
-  9 analog pins
+---
 
-SDA/SCL are spoken for because of the LCD screen
-Adding an indicator LED will take any old pin
-IR receiver will take another
-A photoresistor will take an analog pin
+# Optimization Levels
 
-Add a passive beeper
+---
 
-Add a RTC?
+_sizes as of commit `d45a09abef2fd`_
 
-IN order to make an IR remote wqork with the knobs,
-use an  `ANALOG_EPSILON` and, if the difference is
-passes that threshold, `sensor_changed_p` flag goes
-up and control goes back to the knobs
+---
+
+## -Os
+
+Program:   21336 bytes (65.1% Full)
+(.text + .data + .bootloader)
+
+Data:       1230 bytes (48.0% Full)
+(.data + .bss + .noinit)
+
+---
+
+## -Ofast
+overflowed
+
+---
+
+## -O3
+overflowed
+
+---
+
+## -O2
+
+Program:   24434 bytes (74.6% Full)
+(.text + .data + .bootloader)
+
+Data:       1044 bytes (40.8% Full)
+(.data + .bss + .noinit)
+
+---
+
+## -O1
+
+Program:   24392 bytes (74.4% Full)
+(.text + .data + .bootloader)
+
+Data:       1110 bytes (43.4% Full)
+(.data + .bss + .noinit)
+
+---
+
+

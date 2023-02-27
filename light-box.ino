@@ -68,8 +68,8 @@ extern const byte gamma_xlate[];
 #define PROFILE true
 
 // TODO TODO: is there a better way?
-#define PRO_MICRO true
-#define ARD_UNO false
+/* #define PRO_MICRO true */
+/* #define ARD_UNO false */
 
 // Total number of available Neopixel (even if they're not all used)
 #define ALL_NP_COUNT 24
@@ -110,7 +110,7 @@ extern const byte gamma_xlate[];
  * PIN MACROS                                             */
 
 /* - - FOR PRO MICRO - - - - - - -*/
-#if PRO_MICRO
+#ifdef ARDUINO_AVR_LEONARDO
 #define SDA             2   // orange
 #define SCL             3   // periwinkle
 #define BUZZER          4   // dark pink
@@ -127,7 +127,7 @@ extern const byte gamma_xlate[];
 
 
 /* - - FOR ARDUINO UNO - - - - - - -*/
-#if ARD_UNO
+#if ARDUINO_AVR_UNO
 #define SDA             A4
 #define SCL             A5   // periwinkle
 /* #define BUZZER */
@@ -198,7 +198,6 @@ elapsedMillis debug_timer;
 elapsedMillis pot_timer;
 elapsedMillis re_timer;
 elapsedMillis step_timer;
-// TODO TODO TODO TODO: can I reuse another timer?
 elapsedMillis on_timer;
 elapsedMillis off_timer;
 elapsedMillis lcd_timer;
@@ -239,8 +238,8 @@ byte step_delay = 1;
 byte step_delta = 2;
 
 // TODO TODO TODO NOW: document
-int on_length = 100;
-int off_length = 100;
+unsigned int on_length = 100;
+unsigned int off_length = 100;
 
 // Number of NeoPixel LEDS to use
 // Used by all patterns (rotary button and IR)
@@ -388,6 +387,222 @@ void update_np_count() {
         pixels.show();
     }
     lcd_timeout = 0;
+}
+
+
+
+/* ---------------------------------------------------------
+ * OUTPUT UPDATE FUNCTIONS                                */
+
+// TODO TODO TODO: this whole thing smacks of gender
+
+void show_home() {
+    lcd.clear();
+    lcd.setCursor(3, 0);
+    lcd.print("Light Box");
+    lcd.setCursor(2, 1);
+    lcd.print("-------------");
+}
+
+void show_pattern_and_free_mem() {
+    int freemem = free_ram();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("pattern: ");
+    lcd.print(current_pattern_fun_index);
+    lcd.setCursor(0, 1);
+    lcd.print("free mem: ");
+    lcd.print(freemem);
+    lcd.print("B");
+}
+
+void show_pattern_and_timing() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("pattern: ");
+    lcd.print(current_pattern_fun_index);
+    #if PROFILE
+    lcd.setCursor(0, 1);
+    lcd.print("loop: ");
+    lcd.print(current_fun_inner_loop_time);
+    #endif
+}
+
+void show_free_mem_and_timing() {
+    int freemem = free_ram();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("free mem: ");
+    lcd.print(freemem);
+    lcd.print("B");
+    #if PROFILE
+    lcd.setCursor(0, 1);
+    lcd.print("loop: ");
+    lcd.print(current_fun_inner_loop_time);
+    #endif
+}
+
+void show_ir_and_brightness() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("ir control: ");
+    lcd.print(control_to_ir);
+    lcd.setCursor(0, 1);
+    lcd.print("brightness: ");
+    lcd.print(brightness);
+}
+
+void show_rgb_and_gamma() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("<");
+    lcd.print(current_rgbw[RED_INDEX]);
+    lcd.print(", ");
+    lcd.print(current_rgbw[GREEN_INDEX]);
+    lcd.print(", ");
+    lcd.print(current_rgbw[BLUE_INDEX]);
+    lcd.print(">");
+    lcd.setCursor(0, 1);
+    lcd.print("gamma: ");
+    lcd.print(gamma_correct_p);
+}
+
+void show_step_info() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("step_delay: ");
+    lcd.print(step_delay);
+    lcd.setCursor(0, 1);
+    lcd.print("step delta: ");
+    lcd.print(step_delta);
+}
+
+// TEMPORARY
+void show_on_and_off_length() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("on:  ");
+    lcd.print(on_length);
+    lcd.setCursor(0, 1);
+    lcd.print("off: ");
+    lcd.print(off_length);
+}
+
+
+
+/* ---------------------------------------------------------
+ * REMOTE MUTATE FUNCTIONS                                */
+
+// TODO TODO TODO: is there a better way?
+// TODO TODO TODO: is it a big deal that I'm not changing
+//                 the previous/current values?
+
+// TODO TODO TODO: check all these step sizes
+
+// TODO TODO TODO: explain why the LCD screen overrides are here!
+
+void mutate_brightness_up() {
+    brightness = constrain(brightness + 25, 0, 255);
+    pixels.setBrightness(brightness);
+    show_ir_and_brightness();
+    lcd_timer = 0;
+}
+
+void mutate_brightness_down() {
+    brightness = constrain(brightness - 25, 0, 255);
+    pixels.setBrightness(brightness);
+    show_ir_and_brightness();
+    lcd_timer = 0;
+}
+
+void mutate_red_up() {
+    byte tmp = current_rgbw[RED_INDEX];
+    current_rgbw[RED_INDEX] = constrain(tmp + 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
+}
+
+void mutate_red_down() {
+    byte tmp = current_rgbw[RED_INDEX];
+    current_rgbw[RED_INDEX] = constrain(tmp - 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
+}
+
+void mutate_green_up() {
+    byte tmp = current_rgbw[GREEN_INDEX];
+    current_rgbw[GREEN_INDEX] = constrain(tmp + 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
+}
+
+void mutate_green_down() {
+    byte tmp = current_rgbw[GREEN_INDEX];
+    current_rgbw[GREEN_INDEX] = constrain(tmp - 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
+}
+
+void mutate_blue_up() {
+    byte tmp = current_rgbw[BLUE_INDEX];
+    current_rgbw[BLUE_INDEX] = constrain(tmp + 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
+}
+
+void mutate_blue_down() {
+    byte tmp = current_rgbw[BLUE_INDEX];
+    current_rgbw[BLUE_INDEX] = constrain(tmp - 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
+}
+
+void mutate_step_delay_up() {
+    step_delay = constrain(step_delay + 5, 0, 255);
+    show_step_info();
+    lcd_timer = 0;
+}
+
+void mutate_step_delay_down() {
+    step_delay = constrain(step_delay - 5, 0, 255);
+    show_step_info();
+    lcd_timer = 0;
+}
+
+void mutate_step_delta_up() {
+    step_delta = constrain(step_delta + 5, 0, 255);
+    show_step_info();
+    lcd_timer = 0;
+}
+
+void mutate_step_delta_down() {
+    step_delta = constrain(step_delta - 5, 0, 255);
+    show_step_info();
+    lcd_timer = 0;
+}
+
+void mutate_on_length_up() {
+    on_length = constrain(on_length + 30, 20, 2000);
+    show_on_and_off_length();
+    lcd_timer = 0;
+}
+
+void mutate_on_length_down() {
+    on_length = constrain(on_length - 30, 20, 2000);
+    show_on_and_off_length();
+    lcd_timer = 0;
+}
+
+void mutate_off_length_up() {
+    off_length = constrain(off_length + 30, 20, 2000);
+    show_on_and_off_length();
+    lcd_timer = 0;
+}
+
+void mutate_off_length_down() {
+    off_length = constrain(off_length - 30, 20, 2000);
+    show_on_and_off_length();
+    lcd_timer = 0;
 }
 
 
@@ -625,7 +840,6 @@ void update_blue_brightness() {
 }
 
 // TEMPORARY!!
-// TODO TODO TODO TODO: can I reuse some other timers, instead?
 // TODO TODO TODO TODO: can I use a byte and a multiplier?
 void update_on_length() {
     static int previous_on_length;
@@ -649,220 +863,6 @@ void update_off_length() {
     }
 }
 
-
-
-/* ---------------------------------------------------------
- * REMOTE MUTATE FUNCTIONS                                */
-
-// TODO TODO TODO: is there a better way?
-// TODO TODO TODO: is it a big deal that I'm not changing
-//                 the previous/current values?
-
-// TODO TODO TODO: check all these step sizes
-
-// TODO TODO TODO: explain why the LCD screen overrides are here!
-
-void mutate_brightness_up() {
-    brightness = constrain(brightness + 25, 0, 255);
-    pixels.setBrightness(brightness);
-    show_ir_and_brightness();
-    lcd_timer = 0;
-}
-
-void mutate_brightness_down() {
-    brightness = constrain(brightness - 25, 0, 255);
-    pixels.setBrightness(brightness);
-    show_ir_and_brightness();
-    lcd_timer = 0;
-}
-
-void mutate_red_up() {
-    byte tmp = current_rgbw[RED_INDEX];
-    current_rgbw[RED_INDEX] = constrain(tmp + 10, 0, 255);
-    show_rgb_and_gamma();
-    lcd_timer = 0;
-}
-
-void mutate_red_down() {
-    byte tmp = current_rgbw[RED_INDEX];
-    current_rgbw[RED_INDEX] = constrain(tmp - 10, 0, 255);
-    show_rgb_and_gamma();
-    lcd_timer = 0;
-}
-
-void mutate_green_up() {
-    byte tmp = current_rgbw[GREEN_INDEX];
-    current_rgbw[GREEN_INDEX] = constrain(tmp + 10, 0, 255);
-    show_rgb_and_gamma();
-    lcd_timer = 0;
-}
-
-void mutate_green_down() {
-    byte tmp = current_rgbw[GREEN_INDEX];
-    current_rgbw[GREEN_INDEX] = constrain(tmp - 10, 0, 255);
-    show_rgb_and_gamma();
-    lcd_timer = 0;
-}
-
-void mutate_blue_up() {
-    byte tmp = current_rgbw[BLUE_INDEX];
-    current_rgbw[BLUE_INDEX] = constrain(tmp + 10, 0, 255);
-    show_rgb_and_gamma();
-    lcd_timer = 0;
-}
-
-void mutate_blue_down() {
-    byte tmp = current_rgbw[BLUE_INDEX];
-    current_rgbw[BLUE_INDEX] = constrain(tmp - 10, 0, 255);
-    show_rgb_and_gamma();
-    lcd_timer = 0;
-}
-
-void mutate_step_delay_up() {
-    step_delay = constrain(step_delay + 5, 0, 255);
-    show_step_info();
-    lcd_timer = 0;
-}
-
-void mutate_step_delay_down() {
-    step_delay = constrain(step_delay - 5, 0, 255);
-    show_step_info();
-    lcd_timer = 0;
-}
-
-void mutate_step_delta_up() {
-    step_delta = constrain(step_delta + 5, 0, 255);
-    show_step_info();
-    lcd_timer = 0;
-}
-
-void mutate_step_delta_down() {
-    step_delta = constrain(step_delta - 5, 0, 255);
-    show_step_info();
-    lcd_timer = 0;
-}
-
-void mutate_on_length_up() {
-    on_length = constrain(on_length + 30, 20, 2000);
-    show_on_and_off_length();
-    lcd_timer = 0;
-}
-
-void mutate_on_length_down() {
-    on_length = constrain(on_length - 30, 20, 2000);
-    show_on_and_off_length();
-    lcd_timer = 0;
-}
-
-void mutate_off_length_up() {
-    off_length = constrain(off_length + 30, 20, 2000);
-    show_on_and_off_length();
-    lcd_timer = 0;
-}
-
-void mutate_off_length_down() {
-    off_length = constrain(off_length - 30, 20, 2000);
-    show_on_and_off_length();
-    lcd_timer = 0;
-}
-
-
-/* ---------------------------------------------------------
- * OUTPUT UPDATE FUNCTIONS                                */
-
-// TODO TODO TODO: this whole thing smacks of gender
-
-void show_home() {
-    lcd.clear();
-    lcd.setCursor(3, 0);
-    lcd.print("Light Box");
-    lcd.setCursor(2, 1);
-    lcd.print("-------------");
-}
-
-void show_pattern_and_free_mem() {
-    int freemem = free_ram();
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("pattern: ");
-    lcd.print(current_pattern_fun_index);
-    lcd.setCursor(0, 1);
-    lcd.print("free mem: ");
-    lcd.print(freemem);
-    lcd.print("B");
-}
-
-void show_pattern_and_timing() {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("pattern: ");
-    lcd.print(current_pattern_fun_index);
-    #if PROFILE
-    lcd.setCursor(0, 1);
-    lcd.print("loop: ");
-    lcd.print(current_fun_inner_loop_time);
-    #endif
-}
-
-void show_free_mem_and_timing() {
-    int freemem = free_ram();
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("free mem: ");
-    lcd.print(freemem);
-    lcd.print("B");
-    #if PROFILE
-    lcd.setCursor(0, 1);
-    lcd.print("loop: ");
-    lcd.print(current_fun_inner_loop_time);
-    #endif
-}
-
-void show_ir_and_brightness() {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("ir control: ");
-    lcd.print(control_to_ir);
-    lcd.setCursor(0, 1);
-    lcd.print("brightness: ");
-    lcd.print(brightness);
-}
-
-void show_rgb_and_gamma() {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("<");
-    lcd.print(current_rgbw[RED_INDEX]);
-    lcd.print(", ");
-    lcd.print(current_rgbw[GREEN_INDEX]);
-    lcd.print(", ");
-    lcd.print(current_rgbw[BLUE_INDEX]);
-    lcd.print(">");
-    lcd.setCursor(0, 1);
-    lcd.print("gamma: ");
-    lcd.print(gamma_correct_p);
-}
-
-void show_step_info() {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("step_delay: ");
-    lcd.print(step_delay);
-    lcd.setCursor(0, 1);
-    lcd.print("step delta: ");
-    lcd.print(step_delta);
-}
-
-// TEMPORARY
-void show_on_and_off_length() {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("on:  ");
-    lcd.print(on_length);
-    lcd.setCursor(0, 1);
-    lcd.print("off: ");
-    lcd.print(off_length);
-}
 
 
 
@@ -982,6 +982,7 @@ bool shift_colors(bool direction, byte n_colors, byte* color_indices) {
     return true;
 }
 
+// TODO TODO TODO TODO: make one function and #define ON/OFF true/false
 bool hold_on() {
     if (on_timer > on_length) {
         on_timer = 0;
