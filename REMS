@@ -1,16 +1,9 @@
 
-consider gamma correction off by default 
-instead of up/down, etc... controling step_delay/step_delta, etc... it should
-control whatever value is mutated by update_thumb_pot....
-
 max green brightness
-
-THERE'S A BUG WITH PATTERN 2 (switch to it and switch back)
 
 TEST WITH DIFFERENT OPTIMIZATION LEVELS!
 
 play around with max_brightnesses
-
 
 // first color goes up, second goes down
 bool crossfade_colors(byte color_goes_up, byte color_goes_down) {

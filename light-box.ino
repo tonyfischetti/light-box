@@ -6,7 +6,7 @@
  *    author: tony fischetti <tony.fischetti@gmail.com>                 *
  *    license: GPL-3                                                    *
  *                                                                      *
- *    ---------------                                                   *
+ *                - - - - - - - - - - - - - - - - - -                   *
  *                                                                      *
  *    There was once a young man who was very sad. He always stayed     *
  *    in the dark. Then, one day, he wasn't so sad anymore and          *
@@ -31,8 +31,6 @@
 /********************************************************
  * SOME TODOS                                           *
  *                                                      *
- *   - The ANALOG_DEV_TOLERANCE thing should check      *
- *     the un"mapped" analog output!!                   *
  *   - Experiment with `MAX_BRIGHTNESS[4]`              *
  *     especially for green                             *
  *   - Test with different optimization levels          *
@@ -69,6 +67,7 @@ extern const byte gamma_xlate[];
 #define DEBUG   false
 #define PROFILE true
 
+// TODO TODO: is there a better way?
 #define PRO_MICRO true
 #define ARD_UNO false
 
@@ -93,11 +92,11 @@ extern const byte gamma_xlate[];
 #define DBUG_EVERY      3000
 #define POT_CHECK_EVERY 50
 #define RE_CHECK_EVERY  10
-#define LCD_EVERY       500
+#define LCD_EVERY       1000
 #define IR_CHECK_EVERY  20
 
 // ACHTUNG: NtS: update everytime I add a pattern
-#define NUM_PATTERNS 4
+#define NUM_PATTERNS 5
 
 // fix
 #define UP        true
@@ -336,8 +335,9 @@ int free_ram() {
 
 // NOTE: has side-effects of mutating `control_to_ir` and
 // resetting lcd_timeout
-bool analog_changed_sufficiently_p(byte previous, byte current) {
-    if (abs(current - previous) > ANALOG_DEV_TOLERANCE) {
+bool analog_changed_sufficiently_p(byte previous, byte current,
+                                   byte TOLERANCE=ANALOG_DEV_TOLERANCE) {
+    if (abs(current - previous) > TOLERANCE) {
         if (control_to_ir) {
             #if DEBUG
             Serial.println(F("taking back control from IR"));
@@ -474,9 +474,13 @@ void update_ir() {
                     break;
                 case REM_BACK:
                     update_current_pattern_fun_index(false);
+                    show_pattern_and_free_mem();
+                    lcd_timer = 0;
                     break;
                 case REM_FORWARD:
                     update_current_pattern_fun_index(true);
+                    show_pattern_and_free_mem();
+                    lcd_timer = 0;
                     break;
                 case REM_FUNC:
                     gamma_correct_p = !gamma_correct_p;
@@ -513,20 +517,22 @@ void update_ir() {
                     current_pattern_fun_index = 3;
                     pattern_changed_p = true;
                     break;
+                // ACHTUNG: NtS: update
+                case REM_FOUR:
+                    current_pattern_fun_index = 4;
+                    pattern_changed_p = true;
+                    break;
                     // ACHTUNG: NtS: update
 
                 // TODO TODO TODO: temporary
                 case REM_SEVEN:
-                    show_free_mem_and_timing();
-                    lcd_timer = 0;
+                    update_LCD = show_free_mem_and_timing;
                     break;
                 case REM_EIGHT:
-                    show_ir_and_brightness();
-                    lcd_timer = 0;
+                    update_LCD = show_ir_and_brightness;
                     break;
                 case REM_NINE:
-                    show_step_info();
-                    lcd_timer = 0;
+                    update_LCD = show_step_info;
                     break;
 
                 default:
@@ -541,12 +547,20 @@ void update_ir() {
 
 // Used by patterns {0, 1, 2, 4} (NtS)
 void update_brightness() {
+    /* I used and `int` here (and the others for a "good" reason). When light
+    box turns on for the first time, the brightness (or other) from the
+    knobs' position won't get set if the knob's position happens to be
+    whatever I arbitrarily set `previous_brightness` to. While it's
+    unlikely, on any one trial, that the two would be within 2 of eachother,
+    over the long run, it's unlikely _not_ to happen.
+    By setting `previous_brightness` negative, I can ensure that the knob's
+    position is _always_ sufficiently different than the previous value     */
     static byte previous_brightness;
-    byte current_brightness = analogRead(THUMB_POT_0_IN);
+    byte current_brightness = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 1);
     if (analog_changed_sufficiently_p(previous_brightness,
                 current_brightness) || force_update_p) {
         previous_brightness = current_brightness;
-        brightness = map(current_brightness, 0, 1023, 255, 1);
+        brightness = current_brightness;
         pixels.setBrightness(brightness);
     }
 }
@@ -554,11 +568,11 @@ void update_brightness() {
 // Used by patterns {0, 1} (NtS)
 void update_step_delay() {
     static byte previous_step_delay;
-    byte current_step_delay = analogRead(THUMB_POT_1_IN);
+    byte current_step_delay = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 1);
     if (analog_changed_sufficiently_p(previous_step_delay,
                 current_step_delay) || force_update_p) {
         previous_step_delay = current_step_delay;
-        step_delay = map(current_step_delay, 0, 1023, 255, 1);
+        step_delay = current_step_delay;
     }
 }
 
@@ -566,47 +580,47 @@ void update_step_delay() {
 void update_step_delta() {
     // TODO TODO: are these appropriate limits?
     static byte previous_step_delta;
-    byte current_step_delta = analogRead(THUMB_POT_2_IN);
+    byte current_step_delta = map(analogRead(THUMB_POT_2_IN), 0, 1023, 100, 1);
     if (analog_changed_sufficiently_p(previous_step_delta,
                 current_step_delta) || force_update_p) {
         previous_step_delta = current_step_delta;
-        step_delta = map(current_step_delta, 0, 1023, 100, 1);
+        step_delta = current_step_delta;
     }
 }
 
 // Used by patterns {2} (NtS)
 void update_red_brightness() {
     static byte previous_red;
-    byte current_red = analogRead(THUMB_POT_0_IN);
+    byte current_red = map(analogRead(THUMB_POT_0_IN),
+                           0, 1023, max_brightnesses[RED_INDEX], 0);
     if (analog_changed_sufficiently_p(previous_red, current_red) ||
             force_update_p) {
         previous_red = current_red;
-        current_rgbw[RED_INDEX] = map(current_red, 0, 1023,
-                                      max_brightnesses[RED_INDEX], 0);
+        current_rgbw[RED_INDEX] = current_red;
     }
 }
 
 // Used by patterns {2} (NtS)
 void update_green_brightness() {
     static byte previous_green;
-    byte current_green = analogRead(THUMB_POT_1_IN);
+    byte current_green = map(analogRead(THUMB_POT_1_IN),
+                             0, 1023, max_brightnesses[GREEN_INDEX], 0);
     if (analog_changed_sufficiently_p(previous_green, current_green) ||
             force_update_p) {
         previous_green = current_green;
-        current_rgbw[GREEN_INDEX] = map(current_green, 0, 1023,
-                                        max_brightnesses[GREEN_INDEX], 0);
+        current_rgbw[GREEN_INDEX] = current_green;
     }
 }
 
 // Used by patterns {2} (NtS)
 void update_blue_brightness() {
     static byte previous_blue;
-    byte current_blue = analogRead(THUMB_POT_2_IN);
+    byte current_blue = map(analogRead(THUMB_POT_2_IN),
+                            0, 1023, max_brightnesses[BLUE_INDEX], 0);
     if (analog_changed_sufficiently_p(previous_blue, current_blue) ||
             force_update_p) {
         previous_blue = current_blue;
-        current_rgbw[BLUE_INDEX] = map(current_blue, 0, 1023,
-                                       max_brightnesses[BLUE_INDEX], 0);
+        current_rgbw[BLUE_INDEX] = current_blue;
     }
 }
 
@@ -616,9 +630,9 @@ void update_blue_brightness() {
 void update_on_length() {
     static int previous_on_length;
     unsigned int current_on_length = map(analogRead(THUMB_POT_1_IN),
-                                         0, 1023, 5000, 10);
+                                         0, 1023, 2000, 20);
     if (analog_changed_sufficiently_p(previous_on_length,
-                current_on_length) || force_update_p) {
+                current_on_length, 8) || force_update_p) {
         previous_on_length = current_on_length;
         on_length = current_on_length;
     }
@@ -629,7 +643,7 @@ void update_off_length() {
     unsigned int current_off_length = map(analogRead(THUMB_POT_2_IN),
                                           0, 1023, 2000, 20);
     if (analog_changed_sufficiently_p(previous_off_length,
-                current_off_length) || force_update_p) {
+                current_off_length, 8) || force_update_p) {
         previous_off_length = current_off_length;
         off_length = current_off_length;
     }
@@ -646,76 +660,110 @@ void update_off_length() {
 
 // TODO TODO TODO: check all these step sizes
 
+// TODO TODO TODO: explain why the LCD screen overrides are here!
+
 void mutate_brightness_up() {
     brightness = constrain(brightness + 25, 0, 255);
     pixels.setBrightness(brightness);
+    show_ir_and_brightness();
+    lcd_timer = 0;
 }
 
 void mutate_brightness_down() {
     brightness = constrain(brightness - 25, 0, 255);
     pixels.setBrightness(brightness);
+    show_ir_and_brightness();
+    lcd_timer = 0;
 }
 
 void mutate_red_up() {
     byte tmp = current_rgbw[RED_INDEX];
     current_rgbw[RED_INDEX] = constrain(tmp + 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
 }
 
 void mutate_red_down() {
     byte tmp = current_rgbw[RED_INDEX];
     current_rgbw[RED_INDEX] = constrain(tmp - 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
 }
 
 void mutate_green_up() {
     byte tmp = current_rgbw[GREEN_INDEX];
     current_rgbw[GREEN_INDEX] = constrain(tmp + 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
 }
 
 void mutate_green_down() {
     byte tmp = current_rgbw[GREEN_INDEX];
     current_rgbw[GREEN_INDEX] = constrain(tmp - 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
 }
 
 void mutate_blue_up() {
     byte tmp = current_rgbw[BLUE_INDEX];
     current_rgbw[BLUE_INDEX] = constrain(tmp + 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
 }
 
 void mutate_blue_down() {
     byte tmp = current_rgbw[BLUE_INDEX];
     current_rgbw[BLUE_INDEX] = constrain(tmp - 10, 0, 255);
+    show_rgb_and_gamma();
+    lcd_timer = 0;
 }
 
 void mutate_step_delay_up() {
     step_delay = constrain(step_delay + 5, 0, 255);
+    show_step_info();
+    lcd_timer = 0;
 }
 
 void mutate_step_delay_down() {
     step_delay = constrain(step_delay - 5, 0, 255);
+    show_step_info();
+    lcd_timer = 0;
 }
 
 void mutate_step_delta_up() {
     step_delta = constrain(step_delta + 5, 0, 255);
+    show_step_info();
+    lcd_timer = 0;
 }
 
 void mutate_step_delta_down() {
     step_delta = constrain(step_delta - 5, 0, 255);
+    show_step_info();
+    lcd_timer = 0;
 }
 
 void mutate_on_length_up() {
-    on_length = constrain(on_length + 10, 20, 2000);
+    on_length = constrain(on_length + 30, 20, 2000);
+    show_on_and_off_length();
+    lcd_timer = 0;
 }
 
 void mutate_on_length_down() {
-    on_length = constrain(on_length - 10, 20, 2000);
+    on_length = constrain(on_length - 30, 20, 2000);
+    show_on_and_off_length();
+    lcd_timer = 0;
 }
 
 void mutate_off_length_up() {
-    off_length = constrain(off_length + 10, 20, 2000);
+    off_length = constrain(off_length + 30, 20, 2000);
+    show_on_and_off_length();
+    lcd_timer = 0;
 }
 
 void mutate_off_length_down() {
-    off_length = constrain(off_length - 10, 20, 2000);
+    off_length = constrain(off_length - 30, 20, 2000);
+    show_on_and_off_length();
+    lcd_timer = 0;
 }
 
 
@@ -857,23 +905,23 @@ void write_exact_color(byte R, byte G, byte B, byte W) {
 }
 
 bool update_all_devices() {
-    if (ir_timer > IR_CHECK_EVERY) {
+    if (ir_timer > IR_CHECK_EVERY || force_update_p) {
         update_ir();
         ir_timer = 0;
     }
-    if (re_timer > RE_CHECK_EVERY) {
+    if (re_timer > RE_CHECK_EVERY || force_update_p) {
         update_rotary_encoder();
         update_re_button();
         re_timer = 0;
     }
-    if (pot_timer > POT_CHECK_EVERY) {
+    if (pot_timer > POT_CHECK_EVERY || force_update_p) {
         update_thumb_pot_0();
         update_thumb_pot_1();
         update_thumb_pot_2();
         pot_timer = 0;
     }
     if (lcd_timer > LCD_EVERY) {
-        if (lcd_timeout >= LCD_TIMEOUT) {
+        if (lcd_timeout >= LCD_TIMEOUT || force_update_p) {
             lcd.noBacklight();
         } else {
             lcd.backlight();
@@ -1274,7 +1322,7 @@ void warm_light_pattern() {
  *
  */
 
-void testing_patter() {
+void testing_pattern() {
 
     #if DEBUG
     Serial.println(F("starting testing pattern"));
@@ -1288,10 +1336,10 @@ void testing_patter() {
     update_LCD          = show_on_and_off_length;
     rem_vol_up          = mutate_brightness_up;
     rem_vol_down        = mutate_brightness_down;
-    rem_up              = nothing_function;
-    rem_down            = nothing_function;
-    rem_st              = nothing_function;
-    rem_eq              = nothing_function;
+    rem_up              = mutate_on_length_up;
+    rem_down            = mutate_on_length_down;
+    rem_st              = mutate_off_length_up;
+    rem_eq              = mutate_off_length_down;
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p){
@@ -1353,7 +1401,8 @@ PatternFunction pattern_functions[NUM_PATTERNS] = {
     all_color_change_pattern_0,
     all_color_change_pattern_1,
     solid_color_pattern,
-    warm_light_pattern
+    warm_light_pattern,
+    testing_pattern
 };
 
 
@@ -1452,6 +1501,7 @@ const byte PROGMEM gamma_xlate[] = {
 };
 */
 
+/*
 // gamma: 0.5
 const byte PROGMEM gamma_xlate[] = {
     0,  16, 23, 28, 32, 36, 39, 42, 45, 48, 50, 53, 55, 58, 60, 62,
@@ -1471,5 +1521,25 @@ const byte PROGMEM gamma_xlate[] = {
     239,240,240,241,241,242,242,243,243,244,244,245,245,246,246,247,
     247,248,248,249,249,250,250,251,251,252,252,253,253,254,254,255
 };
+*/
 
+// gamma: 0.8
+const byte PROGMEM gamma_xlate[] = {
+    0,  3,  5,  7,  9,  11, 13, 14, 16, 18, 19, 21, 22, 24, 25, 26, 
+    28, 29, 31, 32, 33, 35, 36, 37, 39, 40, 41, 42, 44, 45, 46, 47, 
+    48, 50, 51, 52, 53, 54, 56, 57, 58, 59, 60, 61, 63, 64, 65, 66, 
+    67, 68, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 
+    84, 85, 86, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
+    101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,
+    117,118,119,120,121,122,123,123,124,125,126,127,128,129,130,131,
+    132,133,134,135,136,137,138,139,140,140,141,142,143,144,145,146,
+    147,148,149,150,151,151,152,153,154,155,156,157,158,159,160,161,
+    161,162,163,164,165,166,167,168,169,169,170,171,172,173,174,175,
+    176,177,177,178,179,180,181,182,183,183,184,185,186,187,188,189,
+    190,190,191,192,193,194,195,196,196,197,198,199,200,201,202,202,
+    203,204,205,206,207,207,208,209,210,211,212,212,213,214,215,216,
+    217,217,218,219,220,221,222,222,223,224,225,226,227,227,228,229,
+    230,231,232,232,233,234,235,236,236,237,238,239,240,240,241,242,
+    243,244,245,245,246,247,248,249,249,250,251,252,253,253,254,255
+};
 

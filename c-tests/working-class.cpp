@@ -15,26 +15,10 @@ void nothing_function () {
 
 typedef void (*SensorUpdateFunction) ();
 SensorUpdateFunction update_thumb_pot_0 = nothing_function;
-typedef void (*RemoteIncreaseFunction) (unsigned int*, int, int, int);
 
 
 void update_brightness() {
     cout << "updating brightness!" << endl;
-}
-
-// try to make it a byte
-void increase_this_by_this(unsigned int*, int add_this, int lower, int upper) {
-    if (add_this < 0 && (-1*add_this) > *var_to_change) {
-        *var_to_change = 0;
-        // don't worry about opposite case
-    }
-    else {
-        *var_to_change += add_this;
-        if (*var_to_change > upper)
-            *var_to_change = upper;
-        else if (*var_to_change < lower)
-            *var_to_change = lower;
-    }
 }
 
 
@@ -43,11 +27,9 @@ class Pattern {
     public:
         string name;
         SensorUpdateFunction update_thumb_pot_0;
-        RemoteIncreaseFunction vol_up;
-        Pattern(string x, SensorUpdateFunction y, RemoteIncreaseFunction z) {
+        Pattern(string x, SensorUpdateFunction y) {
             name = x;
             update_thumb_pot_0 = y;
-            vol_up = z;
         }
 };
 
