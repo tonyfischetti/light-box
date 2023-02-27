@@ -181,10 +181,6 @@ byte current_rgbw[4] = {255, 255, 255, 0};
 // holds the maximum brightness each channel should reach
 byte max_brightnesses[4] = {255, 255, 255, 255};
 
-// TODO TODO TODO TODO: I don't need this when I have the function that
-//                      sets the current_rgb elements from HSV
-unsigned int hue = 0;
-
 // flag that gets set when the pattern is changed
 bool pattern_changed_p = false;
 
@@ -909,20 +905,46 @@ void display_exact_color(byte R, byte G, byte B, byte W) {
     display_RGBw_colors();
 }
 
-// TODO TODO TODO TODO: mention that it bypasses current_rgb
-// TODO TODO TODO TODO: it doesn't use the same gamma correction rn
-// TODO TODO TODO TODO: I can use the code from
-//                     `Adafruit_NeoPixel::setPixelColor` to get the
-//                      RGB values back
-void display_hsv(unsigned int h, unsigned int s=255, unsigned int v=255) {
-    for (int i = 0; i < np_count; i++) {
-        if (gamma_correct_p)
-            pixels.setPixelColor(i, pixels.gamma32(pixels.ColorHSV(h, s, v)));
-        else
-            pixels.setPixelColor(i, pixels.ColorHSV(h, s, v));
+// TODO TODO TODO TODO: mention this is lifted from Adafruit's library
+void display_hue(unsigned int hue) {
+    byte r, g, b;
+    hue = (hue * 1530L + 32768) / 65536;
+    if (hue < 510) {
+        b = 0;
+        if (hue < 255) {
+            r = 255;
+            g = hue;
+        } else {
+            r = 510 - hue;
+            g = 255;
+        }
+    } else if (hue < 1020) {
+        r = 0;
+        if (hue < 765) {
+            g = 255;
+            b = hue - 510;
+        } else {
+            g = 1020 - hue;
+            b = 255;
+        }
+    } else if (hue < 1530) {
+        g = 0;
+        if (hue < 1275) {
+            r = hue - 1020;
+            b = 255;
+        } else {
+            r = 255;
+            b = 1530 - hue;
+        }
+    } else {
+        r = 255;
+        g = b = 0;
     }
-    while (!IrReceiver.isIdle()) { }
-    pixels.show();
+    // SET
+    current_rgbw[RED_INDEX]   = r;
+    current_rgbw[GREEN_INDEX] = g;
+    current_rgbw[BLUE_INDEX]  = b;
+    display_RGBw_colors();
 }
 
 bool update_all_devices() {
@@ -1003,10 +1025,14 @@ bool shift_colors(bool direction, byte n_colors, byte* color_indices) {
     return true;
 }
 
-bool shift_hue(bool reset_timer_p=true) {
+bool shift_hue(unsigned int* hue) {
     if (step_timer > step_delay) {
-        display_hsv(hue);
-        return ((++hue) != 0);
+        unsigned int original_hue = *hue;
+        *hue = original_hue + step_delta;
+        if ((*hue) < original_hue)
+            return false;
+        display_hue(*hue);
+        return true;
     }
     // we have to assume there's more to go
     return true;
@@ -1453,7 +1479,7 @@ void hsv_testing_pattern() {
     rem_st              = mutate_step_delay_up;
     rem_eq              = mutate_step_delay_down;
 
-    /* static unsigned int hue = 0; */
+    static unsigned int hue = 0;
 
     /* ------- PATTERN LOOP ------- */
     while (!pattern_changed_p){
@@ -1461,12 +1487,10 @@ void hsv_testing_pattern() {
         inner_loop_time = 0;
         #endif
 
-        // this could be written more simply since the hue was
-        // designed to overflow. but, then, we couldn't get the
-        // time it takes to complete a cycle
+        display_hue(hue);
         while (update_all_devices() &&
                 debug_values() &&
-                shift_hue())            {};
+                shift_hue(&hue))        {};
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -1614,10 +1638,10 @@ const byte PROGMEM gamma_xlate[] = {
 
 // gamma: 0.8
 const byte PROGMEM gamma_xlate[] = {
-    0,  3,  5,  7,  9,  11, 13, 14, 16, 18, 19, 21, 22, 24, 25, 26, 
-    28, 29, 31, 32, 33, 35, 36, 37, 39, 40, 41, 42, 44, 45, 46, 47, 
-    48, 50, 51, 52, 53, 54, 56, 57, 58, 59, 60, 61, 63, 64, 65, 66, 
-    67, 68, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 
+    0,  3,  5,  7,  9,  11, 13, 14, 16, 18, 19, 21, 22, 24, 25, 26,
+    28, 29, 31, 32, 33, 35, 36, 37, 39, 40, 41, 42, 44, 45, 46, 47,
+    48, 50, 51, 52, 53, 54, 56, 57, 58, 59, 60, 61, 63, 64, 65, 66,
+    67, 68, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83,
     84, 85, 86, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
     101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,
     117,118,119,120,121,122,123,123,124,125,126,127,128,129,130,131,
