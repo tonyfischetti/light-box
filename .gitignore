@@ -1,5 +1,6 @@
 
 compilation-text
+garb
 *.bin
 *.eep
 *.sizeok
