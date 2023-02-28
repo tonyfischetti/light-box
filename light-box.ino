@@ -62,10 +62,6 @@ extern const byte gamma_xlate[];
 #define DEBUG   false
 #define PROFILE true
 
-// TODO TODO: is there a better way?
-/* #define PRO_MICRO true */
-/* #define ARD_UNO false */
-
 // Total number of available Neopixel (even if they're not all used)
 #define ALL_NP_COUNT 24
 
