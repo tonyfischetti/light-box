@@ -568,13 +568,13 @@ void mutate_step_delay_down() {
 }
 
 void mutate_step_delta_up() {
-    step_delta = constrain(step_delta + 5, 0, 255);
+    step_delta = constrain(step_delta + 5, 1, 255);
     show_step_info();
     lcd_timer = 0;
 }
 
 void mutate_step_delta_down() {
-    step_delta = constrain(step_delta - 5, 0, 255);
+    step_delta = constrain(step_delta - 5, 1, 255);
     show_step_info();
     lcd_timer = 0;
 }
@@ -906,48 +906,6 @@ void display_exact_color(byte R, byte G, byte B, byte W) {
     display_RGBw_colors();
 }
 
-// TODO TODO TODO TODO: mention this is lifted from Adafruit's library
-void display_hue(unsigned int hue) {
-    byte r, g, b;
-    hue = (hue * 1530L + 32768) / 65536;
-    if (hue < 510) {
-        b = 0;
-        if (hue < 255) {
-            r = 255;
-            g = hue;
-        } else {
-            r = 510 - hue;
-            g = 255;
-        }
-    } else if (hue < 1020) {
-        r = 0;
-        if (hue < 765) {
-            g = 255;
-            b = hue - 510;
-        } else {
-            g = 1020 - hue;
-            b = 255;
-        }
-    } else if (hue < 1530) {
-        g = 0;
-        if (hue < 1275) {
-            r = hue - 1020;
-            b = 255;
-        } else {
-            r = 255;
-            b = 1530 - hue;
-        }
-    } else {
-        r = 255;
-        g = b = 0;
-    }
-    // SET
-    current_rgbw[RED_INDEX]   = r;
-    current_rgbw[GREEN_INDEX] = g;
-    current_rgbw[BLUE_INDEX]  = b;
-    display_RGBw_colors();
-}
-
 bool update_all_devices() {
     if (ir_timer > IR_CHECK_EVERY || force_update_p) {
         update_ir();
@@ -1012,6 +970,7 @@ bool shift_color(bool direction, byte color_index, bool reset_timer_p=true) {
     return true;
 }
 
+// TODO TODO TODO TODO: is this untested??
 bool shift_colors(bool direction, byte n_colors, byte* color_indices) {
     bool continue_p = false;
     if (step_timer > step_delay) {
@@ -1026,17 +985,33 @@ bool shift_colors(bool direction, byte n_colors, byte* color_indices) {
     return true;
 }
 
-bool shift_hue(unsigned int* hue) {
-    if (step_timer > step_delay) {
-        unsigned int original_hue = *hue;
-        *hue = original_hue + step_delta;
-        if ((*hue) < original_hue)
-            return false;
-        display_hue(*hue);
+// first color goes up, second goes down
+bool crossfade_colors(byte color_goes_up, byte color_goes_down) {
+    bool more_up_p = room_to_go_p(UP, color_goes_up);
+    bool more_down_p = room_to_go_p(DOWN, color_goes_down);
+    if (more_up_p || more_down_p) {
+        if (step_timer > step_delay) {
+            if (more_up_p)
+                current_rgbw[color_goes_up] = current_rgbw[color_goes_up] +
+                                                step_delta;
+            if (more_down_p)
+                current_rgbw[color_goes_down] = current_rgbw[color_goes_down] -
+                                                  step_delta;
+            display_RGBw_colors();
+
+            Serial.print("<");
+            Serial.print(current_rgbw[RED_INDEX]);
+            Serial.print(", ");
+            Serial.print(current_rgbw[GREEN_INDEX]);
+            Serial.print(", ");
+            Serial.print(current_rgbw[BLUE_INDEX]);
+            Serial.println(">");
+
+            step_timer = 0;
+        }
         return true;
     }
-    // we have to assume there's more to go
-    return true;
+    return false;
 }
 
 // TODO TODO TODO TODO: make one function and #define ON/OFF true/false
@@ -1186,8 +1161,7 @@ void all_color_change_pattern_1() {
     #endif
 
     /* ------- SETUP CODE ------- */
-    shift_color(DOWN, RED_INDEX); // starts at 011
-    current_rgbw[RED_INDEX]   = 0;
+    current_rgbw[RED_INDEX]   = 0; // starts at 011
     current_rgbw[GREEN_INDEX] = 255;
     current_rgbw[BLUE_INDEX]  = 255;
 
@@ -1247,9 +1221,85 @@ void all_color_change_pattern_1() {
 }
 
 
+
 /* --------------------------------------------------------- */
 
 /* PATTERN 2:
+ *
+ *   Like pattern 1 (`all_color_change_pattern_1`) but maintains
+ *   a max of 255 across all channels (collectively) by subtracting
+ *   by another channel at the same rate as one channel shifts up
+ *
+ *   Theoretically, this should keep the brightness somewhat constant.
+ *
+ *   In reality, it will do no such thing. I know this
+ *
+ */
+
+void acc_constant_brightness_pattern() {
+
+    #if DEBUG
+    Serial.println(F("starting constant brightness pattern"));
+    #endif
+
+    /* ------- SETUP CODE ------- */
+    // TODO TODO TODO TODO: this (and others) don't respect max_brightnesses
+    current_rgbw[RED_INDEX]   = 255; // starts at 100
+    current_rgbw[GREEN_INDEX] = 0;
+    current_rgbw[BLUE_INDEX]  = 0;
+
+    update_thumb_pot_0  = update_brightness;
+    update_thumb_pot_1  = update_step_delay;
+    update_thumb_pot_2  = update_step_delta;
+    sw_button_press     = update_np_count;
+    update_LCD          = show_home;
+    rem_vol_up          = mutate_brightness_up;
+    rem_vol_down        = mutate_brightness_down;
+    rem_up              = mutate_step_delay_up;
+    rem_down            = mutate_step_delay_down;
+    rem_st              = mutate_step_delta_up;
+    rem_eq              = mutate_step_delta_down;
+
+    force_update_p = true;
+    update_all_devices();
+    force_update_p = false;
+
+    // TODO TODO: why?
+    step_timer = 0;
+
+    /* ------- PATTERN LOOP ------- */
+    while (!pattern_changed_p){
+        #if PROFILE
+        inner_loop_time = 0;
+        #endif
+
+        while (update_all_devices() &&
+                debug_values() &&
+                crossfade_colors(GREEN_INDEX, RED_INDEX))   {}  // 010
+        while (update_all_devices() &&
+                debug_values() &&
+                crossfade_colors(BLUE_INDEX, GREEN_INDEX))  {}  // 001
+        while (update_all_devices() &&
+                debug_values() &&
+                crossfade_colors(RED_INDEX, BLUE_INDEX))    {}  // 100
+
+        #if PROFILE
+        current_fun_inner_loop_time = inner_loop_time;
+        #endif
+    }
+
+    /* ------- TEARDOWN CODE ------- */
+    #if DEBUG
+    Serial.println(F("ending constant brightness pattern"));
+    #endif
+
+}
+
+
+
+/* --------------------------------------------------------- */
+
+/* PATTERN 3:
  *
  *   Solid color with option to change the values for each RGB channel
  *
@@ -1308,7 +1358,7 @@ void solid_color_pattern() {
 
 /* --------------------------------------------------------- */
 
-/* PATTERN 3:
+/* PATTERN 4:
  *
  *   Warm light with controllable brightness (but that's it)
  *
@@ -1374,16 +1424,19 @@ void warm_light_pattern() {
 
 /* --------------------------------------------------------- */
 
-/* PATTERN 4:
+/* PATTERN 5:
  *
- *   TESTING
+ *  Strobes pink, blue, and purple with control over how
+ *  long the lights turn off, and how long they stay on for.
+ *
+ *    (https://en.wikipedia.org/wiki/Bisexual_lighting)
  *
  */
 
-void testing_pattern() {
+void bisexual_strobe_pattern() {
 
     #if DEBUG
-    Serial.println(F("starting testing pattern"));
+    Serial.println(F("starting bisexual strobe pattern"));
     #endif
 
     /* ------- SETUP CODE ------- */
@@ -1446,61 +1499,7 @@ void testing_pattern() {
 
     /* ------- TEARDOWN CODE ------- */
     #if DEBUG
-    Serial.println(F("ending testing pattern"));
-    #endif
-
-}
-
-
-
-/* --------------------------------------------------------- */
-
-/* PATTERN 5:
- *
- *   TESTING HSV
- *
- */
-
-void hsv_testing_pattern() {
-
-    #if DEBUG
-    Serial.println(F("starting hsv testing pattern"));
-    #endif
-
-    /* ------- SETUP CODE ------- */
-    update_thumb_pot_0  = update_brightness;
-    update_thumb_pot_1  = update_step_delay;
-    update_thumb_pot_2  = update_step_delta;
-    sw_button_press     = update_np_count;
-    update_LCD          = show_rgb_and_gamma;
-    rem_vol_up          = mutate_brightness_up;
-    rem_vol_down        = mutate_brightness_down;
-    rem_up              = mutate_step_delay_up;
-    rem_down            = mutate_step_delay_down;
-    rem_st              = mutate_step_delta_up;
-    rem_eq              = mutate_step_delta_down;
-
-    static unsigned int hue = 0;
-
-    /* ------- PATTERN LOOP ------- */
-    while (!pattern_changed_p){
-        #if PROFILE
-        inner_loop_time = 0;
-        #endif
-
-        display_hue(hue);
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_hue(&hue))        {};
-
-        #if PROFILE
-        current_fun_inner_loop_time = inner_loop_time;
-        #endif
-    }
-
-    /* ------- TEARDOWN CODE ------- */
-    #if DEBUG
-    Serial.println(F("ending hsv testing pattern"));
+    Serial.println(F("ending bisexual strobe pattern"));
     #endif
 
 }
@@ -1513,10 +1512,10 @@ void hsv_testing_pattern() {
 PatternFunction pattern_functions[NUM_PATTERNS] = {
     all_color_change_pattern_0,
     all_color_change_pattern_1,
+    acc_constant_brightness_pattern,
     solid_color_pattern,
     warm_light_pattern,
-    testing_pattern,
-    hsv_testing_pattern
+    bisexual_strobe_pattern
 };
 
 
