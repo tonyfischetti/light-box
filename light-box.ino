@@ -31,13 +31,23 @@
 /********************************************************
  * SOME TODOS                                           *
  *                                                      *
- *   - Experiment with `MAX_BRIGHTNESS[4]`              *
+ *                                                      *
+ *   - Detect if LCD changes... if it doesn't,          *
+ *     no need to update it                             *
+ *   - Skip chartreuse by going forward to _______,     *
+ *     stopping, and then going back                    *
+ *   - Try taking DEBUG (and PROFILE?) out of the this  *
+ *     file and adding to the Makefile (eg. -DDEBUG,    *
+ *     -DPROFILE)                                       *
+ *     ! The `#if`s have to be changed to `#ifdef`s,    *
+ *     in that case                                     *
+ *   - Does the new remote send a different code when   *
+ *     you press and _hold down_ button?                *
+ *   - Experiment with `max_brightnesses`               *
  *     especially for green                             *
  *   - Test with different optimization levels          *
  *   - Use different DEBUG levels                       *
  *     (profile these separately)                       *
- *   - Fix bug regarding LCD not turning backlight      *
- *     back on if control is already away from the IR   *
  *   - Have a pattern with "uniform" brightness         *
  *   - Use `static` where I can                         *
  *   - Use `const` where I can                          *
@@ -72,8 +82,6 @@ extern const byte gamma_xlate[];
 // from the IR remote
 #define ANALOG_DEV_TOLERANCE 2
 
-#define LCD_TIMEOUT 20000
-
 // The indices into the `current_rgbw` array for each color
 #define RED_INDEX   0
 #define GREEN_INDEX 1
@@ -83,12 +91,20 @@ extern const byte gamma_xlate[];
 #define DBUG_EVERY      3000
 #define POT_CHECK_EVERY 50
 #define RE_CHECK_EVERY  10
-#define LCD_EVERY       1000
+#define LCD_EVERY       100
 #define IR_CHECK_EVERY  20
 
-// ACHTUNG: NtS: update everytime I add a pattern
-#define NUM_PATTERNS 6
+#define LCD_TIMEOUT 20000
 
+// TODO TODO TODO TODO: document
+//                      has to change with LCD_EVERY
+#define LCD_OVERRIDE_LENGTH 30
+
+// TODO TODO TODO TODO: document
+#define STEP_DIVISOR 4
+
+// ACHTUNG: NtS: update everytime I add a pattern
+#define NUM_PATTERNS 20
 // fix
 #define UP        true
 #define DOWN      false
@@ -165,6 +181,35 @@ extern const byte gamma_xlate[];
 
 
 /* ---------------------------------------------------------
+ * IS THIS HIGHER ORDER PROGRAMMING? IN C?!               */
+
+void nothing_function () {
+    return;
+}
+
+typedef void (*SensorUpdateFunction) ();
+SensorUpdateFunction update_thumb_pot_0 = nothing_function;
+SensorUpdateFunction update_thumb_pot_1 = nothing_function;
+SensorUpdateFunction update_thumb_pot_2 = nothing_function;
+SensorUpdateFunction sw_button_press    = nothing_function;
+
+typedef void (*PatternFunction) ();
+PatternFunction current_pattern_function = nothing_function;
+
+typedef void (*OutputUpdateFunction) ();
+OutputUpdateFunction update_LCD         = nothing_function;
+
+typedef void (*RemoteFunction) ();
+RemoteFunction rem_vol_up   = nothing_function;
+RemoteFunction rem_vol_down = nothing_function;
+RemoteFunction rem_up       = nothing_function;
+RemoteFunction rem_down     = nothing_function;
+RemoteFunction rem_st       = nothing_function;
+RemoteFunction rem_eq       = nothing_function;
+
+
+
+/* ---------------------------------------------------------
  * GLOBALS                                                */
 
 // holds the NeoPixel object
@@ -207,6 +252,10 @@ bool control_to_ir = false;
 //force update sensor values
 bool force_update_p = false;
 
+// TODO TODO TODO TODO: document
+OutputUpdateFunction lcd_fun_override;
+byte lcd_override_steps_left = 0;
+
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 
@@ -239,35 +288,6 @@ byte np_count = 8;
 
 // Used by all patterns (IR)
 bool gamma_correct_p = false;
-
-
-
-/* ---------------------------------------------------------
- * IS THIS HIGHER ORDER PROGRAMMING? IN C?!               */
-
-void nothing_function () {
-    return;
-}
-
-typedef void (*SensorUpdateFunction) ();
-SensorUpdateFunction update_thumb_pot_0 = nothing_function;
-SensorUpdateFunction update_thumb_pot_1 = nothing_function;
-SensorUpdateFunction update_thumb_pot_2 = nothing_function;
-SensorUpdateFunction sw_button_press    = nothing_function;
-
-typedef void (*PatternFunction) ();
-PatternFunction current_pattern_function = nothing_function;
-
-typedef void (*OutputUpdateFunction) ();
-OutputUpdateFunction update_LCD         = nothing_function;
-
-typedef void (*RemoteFunction) ();
-RemoteFunction rem_vol_up   = nothing_function;
-RemoteFunction rem_vol_down = nothing_function;
-RemoteFunction rem_up       = nothing_function;
-RemoteFunction rem_down     = nothing_function;
-RemoteFunction rem_st       = nothing_function;
-RemoteFunction rem_eq       = nothing_function;
 
 
 
@@ -379,6 +399,15 @@ void update_np_count() {
         pixels.show();
     }
     lcd_timeout = 0;
+}
+
+unsigned int kind_of_divide_by(unsigned int thisone, byte divisor) {
+    return ((thisone + divisor) >> divisor);
+}
+
+void override_LCD_display_with_this(OutputUpdateFunction fun) {
+    lcd_fun_override = fun;
+    lcd_override_steps_left = LCD_OVERRIDE_LENGTH;
 }
 
 
@@ -498,7 +527,7 @@ void show_on_and_off_length() {
 void mutate_brightness_up() {
     brightness = constrain(brightness + 25, 0, 255);
     pixels.setBrightness(brightness);
-    show_ir_and_brightness();
+    override_LCD_display_with_this(show_ir_and_brightness);
     lcd_timer = 0;
 }
 
@@ -506,96 +535,102 @@ void mutate_brightness_down() {
     brightness = constrain(brightness - 25, 0, 255);
     pixels.setBrightness(brightness);
     show_ir_and_brightness();
+    override_LCD_display_with_this(show_ir_and_brightness);
     lcd_timer = 0;
 }
 
 void mutate_red_up() {
     byte tmp = current_rgbw[RED_INDEX];
     current_rgbw[RED_INDEX] = constrain(tmp + 10, 0, 255);
-    show_rgb_and_gamma();
+    override_LCD_display_with_this(show_rgb_and_gamma);
     lcd_timer = 0;
 }
 
 void mutate_red_down() {
     byte tmp = current_rgbw[RED_INDEX];
     current_rgbw[RED_INDEX] = constrain(tmp - 10, 0, 255);
-    show_rgb_and_gamma();
+    override_LCD_display_with_this(show_rgb_and_gamma);
     lcd_timer = 0;
 }
 
 void mutate_green_up() {
     byte tmp = current_rgbw[GREEN_INDEX];
     current_rgbw[GREEN_INDEX] = constrain(tmp + 10, 0, 255);
-    show_rgb_and_gamma();
+    override_LCD_display_with_this(show_rgb_and_gamma);
     lcd_timer = 0;
 }
 
 void mutate_green_down() {
     byte tmp = current_rgbw[GREEN_INDEX];
     current_rgbw[GREEN_INDEX] = constrain(tmp - 10, 0, 255);
-    show_rgb_and_gamma();
+    override_LCD_display_with_this(show_rgb_and_gamma);
     lcd_timer = 0;
 }
 
 void mutate_blue_up() {
     byte tmp = current_rgbw[BLUE_INDEX];
     current_rgbw[BLUE_INDEX] = constrain(tmp + 10, 0, 255);
-    show_rgb_and_gamma();
+    override_LCD_display_with_this(show_rgb_and_gamma);
     lcd_timer = 0;
 }
 
 void mutate_blue_down() {
     byte tmp = current_rgbw[BLUE_INDEX];
     current_rgbw[BLUE_INDEX] = constrain(tmp - 10, 0, 255);
-    show_rgb_and_gamma();
+    override_LCD_display_with_this(show_rgb_and_gamma);
     lcd_timer = 0;
 }
 
 void mutate_step_delay_up() {
     step_delay = constrain(step_delay + 5, 0, 255);
-    show_step_info();
+    override_LCD_display_with_this(show_step_info);
     lcd_timer = 0;
 }
 
 void mutate_step_delay_down() {
     step_delay = constrain(step_delay - 5, 0, 255);
-    show_step_info();
+    override_LCD_display_with_this(show_step_info);
     lcd_timer = 0;
 }
 
 void mutate_step_delta_up() {
     step_delta = constrain(step_delta + 5, 1, 255);
-    show_step_info();
+    override_LCD_display_with_this(show_step_info);
     lcd_timer = 0;
 }
 
 void mutate_step_delta_down() {
     step_delta = constrain(step_delta - 5, 1, 255);
-    show_step_info();
+    override_LCD_display_with_this(show_step_info);
     lcd_timer = 0;
 }
 
 void mutate_on_length_up() {
-    on_length = constrain(on_length + 30, 20, 2000);
-    show_on_and_off_length();
+    on_length = constrain(on_length + kind_of_divide_by(on_length, 2),
+                          20, 2000);
+    override_LCD_display_with_this(show_on_and_off_length);
     lcd_timer = 0;
 }
 
 void mutate_on_length_down() {
-    on_length = constrain(on_length - 30, 20, 2000);
-    show_on_and_off_length();
+    on_length = constrain(on_length - kind_of_divide_by(on_length, 2),
+                          20, 2000);
+    override_LCD_display_with_this(show_on_and_off_length);
     lcd_timer = 0;
 }
 
 void mutate_off_length_up() {
-    off_length = constrain(off_length + 30, 20, 2000);
-    show_on_and_off_length();
+    off_length = constrain(off_length + kind_of_divide_by(off_length, 2),
+                           20, 2000);
+    override_LCD_display_with_this(show_on_and_off_length);
     lcd_timer = 0;
 }
 
 void mutate_off_length_down() {
-    off_length = constrain(off_length - 30, 20, 2000);
+    off_length = constrain(off_length - kind_of_divide_by(off_length, 2),
+                           20, 2000);
     show_on_and_off_length();
+    override_LCD_display_with_this(show_on_and_off_length);
     lcd_timer = 0;
 }
 
@@ -620,11 +655,15 @@ bool update_rotary_encoder() {
             Serial.println(F("supposed to increment"));
             #endif
             update_current_pattern_fun_index(true);
+            override_LCD_display_with_this(show_pattern_and_free_mem);
+            lcd_timer = 0;
         } else {
             #if DEBUG
             Serial.println(F("supposed to decrement"));
             #endif
             update_current_pattern_fun_index(false);
+            override_LCD_display_with_this(show_pattern_and_free_mem);
+            lcd_timer = 0;
         }
     }
     previous_state_CLK = current_state_CLK;
@@ -642,7 +681,6 @@ void update_re_button() {
             #if DEBUG
             Serial.println(F("button clicked. about to run `sw_button_press`"));
             #endif
-            lcd_timeout = 0;
             sw_button_press();
         }
         previous_sw_button_press = current_millis;
@@ -683,22 +721,23 @@ void update_ir() {
                     break;
                 case REM_BACK:
                     update_current_pattern_fun_index(false);
-                    show_pattern_and_free_mem();
+                    override_LCD_display_with_this(show_pattern_and_free_mem);
                     lcd_timer = 0;
                     break;
                 case REM_FORWARD:
                     update_current_pattern_fun_index(true);
-                    show_pattern_and_free_mem();
+                    override_LCD_display_with_this(show_pattern_and_free_mem);
                     lcd_timer = 0;
                     break;
                 case REM_FUNC:
                     gamma_correct_p = !gamma_correct_p;
-                    show_rgb_and_gamma();
+                    override_LCD_display_with_this(show_rgb_and_gamma);
                     lcd_timer = 0;
                     break;
 
                 case REM_UP:
                     rem_up();
+                    lcd_timer = 0;
                     break;
                 case REM_DOWN:
                     rem_down();
@@ -713,43 +752,49 @@ void update_ir() {
                 case REM_ZERO:
                     current_pattern_fun_index = 0;
                     pattern_changed_p = true;
+                    override_LCD_display_with_this(show_pattern_and_free_mem);
                     break;
                 case REM_ONE:
                     current_pattern_fun_index = 1;
                     pattern_changed_p = true;
+                    override_LCD_display_with_this(show_pattern_and_free_mem);
                     break;
                 case REM_TWO:
                     current_pattern_fun_index = 2;
                     pattern_changed_p = true;
+                    override_LCD_display_with_this(show_pattern_and_free_mem);
                     break;
                 case REM_THREE:
                     current_pattern_fun_index = 3;
                     pattern_changed_p = true;
+                    override_LCD_display_with_this(show_pattern_and_free_mem);
                     break;
                 // ACHTUNG: NtS: update
                 case REM_FOUR:
                     current_pattern_fun_index = 4;
                     pattern_changed_p = true;
+                    override_LCD_display_with_this(show_pattern_and_free_mem);
                     break;
                     // ACHTUNG: NtS: update
                 case REM_FIVE:
                     current_pattern_fun_index = 5;
                     pattern_changed_p = true;
+                    override_LCD_display_with_this(show_pattern_and_free_mem);
                     break;
 
                 // TODO TODO TODO: temporary
                 case REM_SEVEN:
-                    update_LCD = show_free_mem_and_timing;
+                    override_LCD_display_with_this(show_free_mem_and_timing);
                     break;
                 case REM_EIGHT:
-                    update_LCD = show_ir_and_brightness;
+                    override_LCD_display_with_this(show_ir_and_brightness);
                     break;
                 case REM_NINE:
-                    update_LCD = show_step_info;
+                    override_LCD_display_with_this(show_step_info);
                     break;
 
                 default:
-                    update_LCD = show_home;
+                    override_LCD_display_with_this(show_home);
             }
         }
         previous_ir_signal = current_millis;
@@ -918,12 +963,17 @@ bool update_all_devices() {
         update_thumb_pot_2();
         pot_timer = 0;
     }
-    if (lcd_timer > LCD_EVERY) {
-        if (lcd_timeout >= LCD_TIMEOUT || force_update_p) {
+    if (lcd_timer > LCD_EVERY || force_update_p) {
+        if (lcd_timeout >= LCD_TIMEOUT) {
             lcd.noBacklight();
         } else {
             lcd.backlight();
-            update_LCD();
+            if (lcd_override_steps_left) {
+                lcd_fun_override();
+                lcd_override_steps_left--;
+            } else {
+                update_LCD();
+            }
         }
         lcd_timer = 0;
     }

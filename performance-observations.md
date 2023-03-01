@@ -56,3 +56,7 @@ without
 with
 1300B
 
+---
+
+btw, times are pattern `all_color_change_pattern_1` with
+step size of 1 and step delta of 2
