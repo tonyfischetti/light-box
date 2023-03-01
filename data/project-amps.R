@@ -41,11 +41,12 @@ library(ggplot2)
 
 dat[pattern==1] %>%
   ggplot(aes(x=brightness, y=milliamps, group=num_sticks)) +
-  geom_line()
+  geom_line() + ylim(0, 300)
 
 # probably around 240
 
 
+dat[pattern==2]
 dat[pattern==2] %>%
   ggplot(aes(x=brightness, y=milliamps, group=num_sticks)) +
   geom_line() +
@@ -62,4 +63,5 @@ dat[pattern==2] %>%
   geom_line() + geom_point()
 
 # no more than 350
+# probably around 310 (for full warm white, that is)
 
