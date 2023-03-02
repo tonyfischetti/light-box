@@ -132,20 +132,9 @@ I'm surprised it works with a 5V charger. I would think that there's
 a voltage drop at the power supply's regulator.
 
 
+It's been an hour. Still going strong!
 
+Tested again with a 6V charger--never stopped working
 
-
-
-The first was 9V 2A
-
-Doesn't last long _at_ _all_
-
-
-The second was 9V 1A
-
-Which didn't last long but paradoxically a little longer than
-the format
-
-
-The third was 
-
+I just added another stick and it looks like the it still
+works. It must have been the heat from the 9V

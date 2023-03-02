@@ -73,7 +73,7 @@ extern const byte gamma_xlate[];
 #define PROFILE true
 
 // Total number of available Neopixel (even if they're not all used)
-#define ALL_NP_COUNT 24
+#define ALL_NP_COUNT 32
 
 // number of milliseconds to wait for buttons, etc. to settle
 #define EPSILON 250
@@ -389,6 +389,9 @@ void update_np_count() {
     }
     else if (np_count == 16) {
         np_count = 24;
+    }
+    else if (np_count == 24) {
+        np_count = 32;
     }
     else {
         np_count = 8;
