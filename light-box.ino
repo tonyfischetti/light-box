@@ -80,7 +80,7 @@ extern const byte gamma_xlate[];
 
 // amount the thumb pots must change to steal control back
 // from the IR remote
-#define ANALOG_DEV_TOLERANCE 2
+#define ANALOG_DEV_TOLERANCE 4
 
 // The indices into the `current_rgbw` array for each color
 #define RED_INDEX   0
@@ -94,7 +94,7 @@ extern const byte gamma_xlate[];
 #define LCD_EVERY       100
 #define IR_CHECK_EVERY  20
 
-#define LCD_TIMEOUT 20000
+#define LCD_TIMEOUT 10000
 
 // TODO TODO TODO TODO: document
 //                      has to change with LCD_EVERY
@@ -823,6 +823,10 @@ void update_brightness() {
         previous_brightness = current_brightness;
         brightness = current_brightness;
         pixels.setBrightness(brightness);
+        if (!force_update_p) {
+            override_LCD_display_with_this(show_ir_and_brightness);
+            lcd_timer = 0;
+        }
     }
 }
 
@@ -834,6 +838,10 @@ void update_step_delay() {
                 current_step_delay) || force_update_p) {
         previous_step_delay = current_step_delay;
         step_delay = current_step_delay;
+        if (!force_update_p) {
+            override_LCD_display_with_this(show_step_info);
+            lcd_timer = 0;
+        }
     }
 }
 
@@ -846,6 +854,10 @@ void update_step_delta() {
                 current_step_delta) || force_update_p) {
         previous_step_delta = current_step_delta;
         step_delta = current_step_delta;
+        if (!force_update_p) {
+            override_LCD_display_with_this(show_step_info);
+            lcd_timer = 0;
+        }
     }
 }
 
@@ -858,6 +870,10 @@ void update_red_brightness() {
             force_update_p) {
         previous_red = current_red;
         current_rgbw[RED_INDEX] = current_red;
+        if (!force_update_p) {
+            override_LCD_display_with_this(show_rgb_and_gamma);
+            lcd_timer = 0;
+        }
     }
 }
 
@@ -870,6 +886,10 @@ void update_green_brightness() {
             force_update_p) {
         previous_green = current_green;
         current_rgbw[GREEN_INDEX] = current_green;
+        if (!force_update_p) {
+            override_LCD_display_with_this(show_rgb_and_gamma);
+            lcd_timer = 0;
+        }
     }
 }
 
@@ -882,6 +902,10 @@ void update_blue_brightness() {
             force_update_p) {
         previous_blue = current_blue;
         current_rgbw[BLUE_INDEX] = current_blue;
+        if (!force_update_p) {
+            override_LCD_display_with_this(show_rgb_and_gamma);
+            lcd_timer = 0;
+        }
     }
 }
 
@@ -895,6 +919,10 @@ void update_on_length() {
                 current_on_length, 8) || force_update_p) {
         previous_on_length = current_on_length;
         on_length = current_on_length;
+        if (!force_update_p) {
+            override_LCD_display_with_this(show_on_and_off_length);
+            lcd_timer = 0;
+        }
     }
 }
 
@@ -906,6 +934,10 @@ void update_off_length() {
                 current_off_length, 8) || force_update_p) {
         previous_off_length = current_off_length;
         off_length = current_off_length;
+        if (!force_update_p) {
+            override_LCD_display_with_this(show_on_and_off_length);
+            lcd_timer = 0;
+        }
     }
 }
 
