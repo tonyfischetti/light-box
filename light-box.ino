@@ -256,6 +256,7 @@ bool force_update_p = false;
 OutputUpdateFunction lcd_fun_override;
 byte lcd_override_steps_left = 0;
 
+// TODO TODO TODO TODO TODO: I think I'm using the wrong one :/
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 
@@ -411,6 +412,7 @@ unsigned int kind_of_divide_by(unsigned int thisone, byte divisor) {
 void override_LCD_display_with_this(OutputUpdateFunction fun) {
     lcd_fun_override = fun;
     lcd_override_steps_left = LCD_OVERRIDE_LENGTH;
+    lcd_timer = 0;
 }
 
 
@@ -531,7 +533,6 @@ void mutate_brightness_up() {
     brightness = constrain(brightness + 25, 0, 255);
     pixels.setBrightness(brightness);
     override_LCD_display_with_this(show_ir_and_brightness);
-    lcd_timer = 0;
 }
 
 void mutate_brightness_down() {
@@ -539,94 +540,80 @@ void mutate_brightness_down() {
     pixels.setBrightness(brightness);
     show_ir_and_brightness();
     override_LCD_display_with_this(show_ir_and_brightness);
-    lcd_timer = 0;
 }
 
 void mutate_red_up() {
     byte tmp = current_rgbw[RED_INDEX];
     current_rgbw[RED_INDEX] = constrain(tmp + 10, 0, 255);
     override_LCD_display_with_this(show_rgb_and_gamma);
-    lcd_timer = 0;
 }
 
 void mutate_red_down() {
     byte tmp = current_rgbw[RED_INDEX];
     current_rgbw[RED_INDEX] = constrain(tmp - 10, 0, 255);
     override_LCD_display_with_this(show_rgb_and_gamma);
-    lcd_timer = 0;
 }
 
 void mutate_green_up() {
     byte tmp = current_rgbw[GREEN_INDEX];
     current_rgbw[GREEN_INDEX] = constrain(tmp + 10, 0, 255);
     override_LCD_display_with_this(show_rgb_and_gamma);
-    lcd_timer = 0;
 }
 
 void mutate_green_down() {
     byte tmp = current_rgbw[GREEN_INDEX];
     current_rgbw[GREEN_INDEX] = constrain(tmp - 10, 0, 255);
     override_LCD_display_with_this(show_rgb_and_gamma);
-    lcd_timer = 0;
 }
 
 void mutate_blue_up() {
     byte tmp = current_rgbw[BLUE_INDEX];
     current_rgbw[BLUE_INDEX] = constrain(tmp + 10, 0, 255);
     override_LCD_display_with_this(show_rgb_and_gamma);
-    lcd_timer = 0;
 }
 
 void mutate_blue_down() {
     byte tmp = current_rgbw[BLUE_INDEX];
     current_rgbw[BLUE_INDEX] = constrain(tmp - 10, 0, 255);
     override_LCD_display_with_this(show_rgb_and_gamma);
-    lcd_timer = 0;
 }
 
 void mutate_step_delay_up() {
     step_delay = constrain(step_delay + 5, 0, 255);
     override_LCD_display_with_this(show_step_info);
-    lcd_timer = 0;
 }
 
 void mutate_step_delay_down() {
     step_delay = constrain(step_delay - 5, 0, 255);
     override_LCD_display_with_this(show_step_info);
-    lcd_timer = 0;
 }
 
 void mutate_step_delta_up() {
     step_delta = constrain(step_delta + 5, 1, 255);
     override_LCD_display_with_this(show_step_info);
-    lcd_timer = 0;
 }
 
 void mutate_step_delta_down() {
     step_delta = constrain(step_delta - 5, 1, 255);
     override_LCD_display_with_this(show_step_info);
-    lcd_timer = 0;
 }
 
 void mutate_on_length_up() {
     on_length = constrain(on_length + kind_of_divide_by(on_length, 2),
                           20, 2000);
     override_LCD_display_with_this(show_on_and_off_length);
-    lcd_timer = 0;
 }
 
 void mutate_on_length_down() {
     on_length = constrain(on_length - kind_of_divide_by(on_length, 2),
                           20, 2000);
     override_LCD_display_with_this(show_on_and_off_length);
-    lcd_timer = 0;
 }
 
 void mutate_off_length_up() {
     off_length = constrain(off_length + kind_of_divide_by(off_length, 2),
                            20, 2000);
     override_LCD_display_with_this(show_on_and_off_length);
-    lcd_timer = 0;
 }
 
 void mutate_off_length_down() {
@@ -634,7 +621,6 @@ void mutate_off_length_down() {
                            20, 2000);
     show_on_and_off_length();
     override_LCD_display_with_this(show_on_and_off_length);
-    lcd_timer = 0;
 }
 
 
@@ -659,14 +645,12 @@ bool update_rotary_encoder() {
             #endif
             update_current_pattern_fun_index(true);
             override_LCD_display_with_this(show_pattern_and_free_mem);
-            lcd_timer = 0;
         } else {
             #if DEBUG
             Serial.println(F("supposed to decrement"));
             #endif
             update_current_pattern_fun_index(false);
             override_LCD_display_with_this(show_pattern_and_free_mem);
-            lcd_timer = 0;
         }
     }
     previous_state_CLK = current_state_CLK;
@@ -725,17 +709,14 @@ void update_ir() {
                 case REM_BACK:
                     update_current_pattern_fun_index(false);
                     override_LCD_display_with_this(show_pattern_and_free_mem);
-                    lcd_timer = 0;
                     break;
                 case REM_FORWARD:
                     update_current_pattern_fun_index(true);
                     override_LCD_display_with_this(show_pattern_and_free_mem);
-                    lcd_timer = 0;
                     break;
                 case REM_FUNC:
                     gamma_correct_p = !gamma_correct_p;
                     override_LCD_display_with_this(show_rgb_and_gamma);
-                    lcd_timer = 0;
                     break;
 
                 case REM_UP:
@@ -823,10 +804,8 @@ void update_brightness() {
         previous_brightness = current_brightness;
         brightness = current_brightness;
         pixels.setBrightness(brightness);
-        if (!force_update_p) {
+        if (!force_update_p)
             override_LCD_display_with_this(show_ir_and_brightness);
-            lcd_timer = 0;
-        }
     }
 }
 
@@ -838,10 +817,8 @@ void update_step_delay() {
                 current_step_delay) || force_update_p) {
         previous_step_delay = current_step_delay;
         step_delay = current_step_delay;
-        if (!force_update_p) {
+        if (!force_update_p)
             override_LCD_display_with_this(show_step_info);
-            lcd_timer = 0;
-        }
     }
 }
 
@@ -854,10 +831,8 @@ void update_step_delta() {
                 current_step_delta) || force_update_p) {
         previous_step_delta = current_step_delta;
         step_delta = current_step_delta;
-        if (!force_update_p) {
+        if (!force_update_p)
             override_LCD_display_with_this(show_step_info);
-            lcd_timer = 0;
-        }
     }
 }
 
@@ -870,10 +845,8 @@ void update_red_brightness() {
             force_update_p) {
         previous_red = current_red;
         current_rgbw[RED_INDEX] = current_red;
-        if (!force_update_p) {
+        if (!force_update_p)
             override_LCD_display_with_this(show_rgb_and_gamma);
-            lcd_timer = 0;
-        }
     }
 }
 
@@ -886,10 +859,8 @@ void update_green_brightness() {
             force_update_p) {
         previous_green = current_green;
         current_rgbw[GREEN_INDEX] = current_green;
-        if (!force_update_p) {
+        if (!force_update_p)
             override_LCD_display_with_this(show_rgb_and_gamma);
-            lcd_timer = 0;
-        }
     }
 }
 
@@ -902,10 +873,8 @@ void update_blue_brightness() {
             force_update_p) {
         previous_blue = current_blue;
         current_rgbw[BLUE_INDEX] = current_blue;
-        if (!force_update_p) {
+        if (!force_update_p)
             override_LCD_display_with_this(show_rgb_and_gamma);
-            lcd_timer = 0;
-        }
     }
 }
 
@@ -919,10 +888,8 @@ void update_on_length() {
                 current_on_length, 8) || force_update_p) {
         previous_on_length = current_on_length;
         on_length = current_on_length;
-        if (!force_update_p) {
+        if (!force_update_p)
             override_LCD_display_with_this(show_on_and_off_length);
-            lcd_timer = 0;
-        }
     }
 }
 
@@ -934,10 +901,8 @@ void update_off_length() {
                 current_off_length, 8) || force_update_p) {
         previous_off_length = current_off_length;
         off_length = current_off_length;
-        if (!force_update_p) {
+        if (!force_update_p)
             override_LCD_display_with_this(show_on_and_off_length);
-            lcd_timer = 0;
-        }
     }
 }
 
