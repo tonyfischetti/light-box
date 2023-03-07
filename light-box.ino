@@ -104,7 +104,7 @@ extern const byte gamma_xlate[];
 #define STEP_DIVISOR 4
 
 // ACHTUNG: NtS: update everytime I add a pattern
-#define NUM_PATTERNS 20
+#define NUM_PATTERNS 6
 // fix
 #define UP        true
 #define DOWN      false
@@ -885,7 +885,7 @@ void update_on_length() {
     unsigned int current_on_length = map(analogRead(THUMB_POT_1_IN),
                                          0, 1023, 2000, 20);
     if (analog_changed_sufficiently_p(previous_on_length,
-                current_on_length, 8) || force_update_p) {
+                current_on_length, 10) || force_update_p) {
         previous_on_length = current_on_length;
         on_length = current_on_length;
         if (!force_update_p)
@@ -898,7 +898,7 @@ void update_off_length() {
     unsigned int current_off_length = map(analogRead(THUMB_POT_2_IN),
                                           0, 1023, 2000, 20);
     if (analog_changed_sufficiently_p(previous_off_length,
-                current_off_length, 8) || force_update_p) {
+                current_off_length, 10) || force_update_p) {
         previous_off_length = current_off_length;
         off_length = current_off_length;
         if (!force_update_p)
@@ -932,7 +932,7 @@ void display_RGBw_colors() {
 }
 
 void display_RGBw_zeroes() {
-    for (int i = 0; i < np_count; i++) {
+    for (byte i = 0; i < np_count; i++) {
         pixels.setPixelColor(i, 0, 0, 0, 0);
     }
     while (!IrReceiver.isIdle()) { }
@@ -945,6 +945,32 @@ void display_exact_color(byte R, byte G, byte B, byte W) {
     current_rgbw[BLUE_INDEX]  = B;
     current_rgbw[WHITE_INDEX] = W;
     display_RGBw_colors();
+}
+
+void display_dot(byte index, bool mirror_p=true, bool project_p=true) {
+    for (byte i = 0; i < np_count; i++) {
+        if ((index == i) ||
+            (project_p && ((i % 8) == index)) ||
+            (mirror_p  && ((7 - i)  == index)) ||
+            ((project_p && mirror_p) &&
+             ((7 - index) == (i % 8)))) {
+            // TODO TODO TODO TODO: seriously need to reduce duplication
+            if (gamma_correct_p) {
+                pixels.setPixelColor(i,
+                    pgm_read_byte(&gamma_xlate[current_rgbw[RED_INDEX]]),
+                    pgm_read_byte(&gamma_xlate[current_rgbw[GREEN_INDEX]]),
+                    pgm_read_byte(&gamma_xlate[current_rgbw[BLUE_INDEX]]),
+                    pgm_read_byte(&gamma_xlate[current_rgbw[WHITE_INDEX]]));
+            } else {
+                pixels.setPixelColor(i, current_rgbw[RED_INDEX],
+                                        current_rgbw[GREEN_INDEX],
+                                        current_rgbw[BLUE_INDEX],
+                                        current_rgbw[WHITE_INDEX]);
+            }
+        }
+    }
+    while (!IrReceiver.isIdle()) { }
+    pixels.show();
 }
 
 bool update_all_devices() {
@@ -1086,124 +1112,14 @@ bool hold_off() {
  *   Shifts through all the colors. Brightness, speed, and step size are
  *   parameterized.
  *
- */
-
-void all_color_change_pattern_0() {
-
-    #if DEBUG
-    Serial.println(F("starting all_color_change_pattern_0"));
-    #endif
-
-    /* ------- SETUP CODE ------- */
-    update_thumb_pot_0  = update_brightness;
-    update_thumb_pot_1  = update_step_delay;
-    update_thumb_pot_2  = update_step_delta;
-    sw_button_press     = update_np_count;
-    update_LCD          = show_home;
-    rem_vol_up          = mutate_brightness_up;
-    rem_vol_down        = mutate_brightness_down;
-    rem_up              = mutate_step_delay_up;
-    rem_down            = mutate_step_delay_down;
-    rem_st              = mutate_step_delta_up;
-    rem_eq              = mutate_step_delta_down;
-
-    force_update_p = true;
-    update_all_devices();
-    force_update_p = false;
-
-    /* ------- PATTERN LOOP ------- */
-    while (!pattern_changed_p) {
-        #if PROFILE
-        inner_loop_time = 0;
-        #endif
-
-        // first sub-pattern
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(DOWN, RED_INDEX))   {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(DOWN, GREEN_INDEX)) {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(UP, RED_INDEX))     {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(DOWN, BLUE_INDEX))  {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(UP, GREEN_INDEX))   {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(UP, BLUE_INDEX))    {}
-
-        // second sub-pattern
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(DOWN, GREEN_INDEX)) {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(DOWN, BLUE_INDEX))  {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(UP, GREEN_INDEX))   {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(DOWN, RED_INDEX))   {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(UP, BLUE_INDEX))    {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(UP, RED_INDEX))     {}
-
-        // third sub-pattern
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(DOWN, BLUE_INDEX))  {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(DOWN, RED_INDEX))   {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(UP, BLUE_INDEX))    {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(DOWN, GREEN_INDEX)) {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(UP, RED_INDEX))     {}
-        while (update_all_devices() &&
-                debug_values() &&
-                shift_color(UP, GREEN_INDEX))   {}
-
-        #if PROFILE
-        current_fun_inner_loop_time = inner_loop_time;
-        #endif
-    }
-
-    /* ------- TEARDOWN CODE ------- */
-    #if DEBUG
-    Serial.println(F("ending all_color_change_pattern_0"));
-    #endif
-}
-
-
-/* --------------------------------------------------------- */
-
-/* PATTERN 1:
- *
- *   Shifts through all the colors. Brightness, speed, and step size are
- *   parameterized.
- *
  *   Avoids making white
  *
  */
 
-void all_color_change_pattern_1() {
+void color_shift_0() {
 
     #if DEBUG
-    Serial.println(F("starting all_color_change_pattern_1"));
+    Serial.println(F("starting color_shift_0 pattern"));
     #endif
 
     /* ------- SETUP CODE ------- */
@@ -1262,7 +1178,7 @@ void all_color_change_pattern_1() {
 
     /* ------- TEARDOWN CODE ------- */
     #if DEBUG
-    Serial.println(F("ending all_color_change_pattern_1"));
+    Serial.println(F("ending color_shift_0 pattern"));
     #endif
 }
 
@@ -1270,9 +1186,9 @@ void all_color_change_pattern_1() {
 
 /* --------------------------------------------------------- */
 
-/* PATTERN 2:
+/* PATTERN 1:
  *
- *   Like pattern 1 (`all_color_change_pattern_1`) but maintains
+ *   Like pattern 0 (`all_color_change_pattern_0`) but maintains
  *   a max of 255 across all channels (collectively) by subtracting
  *   by another channel at the same rate as one channel shifts up
  *
@@ -1282,10 +1198,10 @@ void all_color_change_pattern_1() {
  *
  */
 
-void acc_constant_brightness_pattern() {
+void color_shift_constant_255() {
 
     #if DEBUG
-    Serial.println(F("starting constant brightness pattern"));
+    Serial.println(F("starting color_shift_constant_255 pattern"));
     #endif
 
     /* ------- SETUP CODE ------- */
@@ -1336,7 +1252,7 @@ void acc_constant_brightness_pattern() {
 
     /* ------- TEARDOWN CODE ------- */
     #if DEBUG
-    Serial.println(F("ending constant brightness pattern"));
+    Serial.println(F("ending color_shift_constant_255 pattern"));
     #endif
 
 }
@@ -1345,16 +1261,16 @@ void acc_constant_brightness_pattern() {
 
 /* --------------------------------------------------------- */
 
-/* PATTERN 3:
+/* PATTERN 2:
  *
  *   Solid color with option to change the values for each RGB channel
  *
  */
 
-void solid_color_pattern() {
+void choose_a_color() {
 
     #if DEBUG
-    Serial.println(F("starting solid_color_pattern"));
+    Serial.println(F("starting choose_a_color pattern"));
     #endif
 
     /* ------- SETUP CODE ------- */
@@ -1397,14 +1313,14 @@ void solid_color_pattern() {
 
     /* ------- TEARDOWN CODE ------- */
     #if DEBUG
-    Serial.println(F("ending solid_color_pattern"));
+    Serial.println(F("ending choose_a_color"));
     #endif
 }
 
 
 /* --------------------------------------------------------- */
 
-/* PATTERN 4:
+/* PATTERN 3:
  *
  *   Warm light with controllable brightness (but that's it)
  *
@@ -1470,7 +1386,7 @@ void warm_light_pattern() {
 
 /* --------------------------------------------------------- */
 
-/* PATTERN 5:
+/* PATTERN 4:
  *
  *  Strobes pink, blue, and purple with control over how
  *  long the lights turn off, and how long they stay on for.
@@ -1552,16 +1468,99 @@ void bisexual_strobe_pattern() {
 
 
 
+/* --------------------------------------------------------- */
+
+/* PATTERN 5:
+ *
+ *  TODO TODO TODO TODO: document
+ *
+ */
+
+void on_the_bridge() {
+
+    #if DEBUG
+    Serial.println(F("starting 'on the bridge' pattern"));
+    #endif
+
+    /* ------- SETUP CODE ------- */
+
+    current_rgbw[RED_INDEX]   = 255;
+    current_rgbw[GREEN_INDEX] = 82;
+    current_rgbw[BLUE_INDEX]  = 9;
+    current_rgbw[WHITE_INDEX] = 0;
+
+    update_thumb_pot_0  = update_brightness;
+    update_thumb_pot_1  = update_on_length;
+    update_thumb_pot_2  = update_off_length;
+    sw_button_press     = update_np_count;
+    update_LCD          = show_on_and_off_length;
+    rem_vol_up          = mutate_brightness_up;
+    rem_vol_down        = mutate_brightness_down;
+    rem_up              = mutate_on_length_up;
+    rem_down            = mutate_on_length_down;
+    rem_st              = mutate_off_length_up;
+    rem_eq              = mutate_off_length_down;
+
+    /* ------- PATTERN LOOP ------- */
+    while (!pattern_changed_p){
+        #if PROFILE
+        inner_loop_time = 0;
+        #endif
+
+        display_RGBw_zeroes();
+        display_dot(3);
+        on_timer = 0;
+        while (update_all_devices() &&
+                debug_values() &&
+                hold_on())                 {}
+        display_RGBw_zeroes();
+        display_dot(2);
+        on_timer = 0;
+        while (update_all_devices() &&
+                debug_values() &&
+                hold_on())                 {}
+        display_RGBw_zeroes();
+        display_dot(1);
+        on_timer = 0;
+        while (update_all_devices() &&
+                debug_values() &&
+                hold_on())                 {}
+        display_RGBw_zeroes();
+        display_dot(0);
+        on_timer = 0;
+        while (update_all_devices() &&
+                debug_values() &&
+                hold_on())                 {}
+        display_RGBw_zeroes();
+        off_timer = 0;
+        while (update_all_devices() &&
+                debug_values() &&
+                hold_off())                {}
+
+        #if PROFILE
+        current_fun_inner_loop_time = inner_loop_time;
+        #endif
+    }
+
+    /* ------- TEARDOWN CODE ------- */
+    #if DEBUG
+    Serial.println(F("ending 'on the bridge' pattern"));
+    #endif
+
+}
+
+
+
 /* ---------------------------------------------------------
  * PATTERN FUNCTION ARRAY                                 */
 
 PatternFunction pattern_functions[NUM_PATTERNS] = {
-    all_color_change_pattern_0,
-    all_color_change_pattern_1,
-    acc_constant_brightness_pattern,
-    solid_color_pattern,
+    color_shift_0,
+    color_shift_constant_255,
+    choose_a_color,
     warm_light_pattern,
-    bisexual_strobe_pattern
+    bisexual_strobe_pattern,
+    on_the_bridge
 };
 
 
