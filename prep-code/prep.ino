@@ -1,5 +1,9 @@
 
 
+// TODO TODO: it's a little behind. Can I manipulate __TIME__ to account
+//            for the latency betwixt compilation and the installation
+//            of the new firmware?
+
 
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
