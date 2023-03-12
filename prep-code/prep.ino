@@ -22,6 +22,13 @@
 #define DEBUG true
 
 
+#define ST_Q 104.3
+#define ST_HOT 97.1
+#define ST_WQXR 105.9
+
+#define NUM_STATIONS 3
+
+
 LiquidCrystal_I2C lcd(0x3F, 16, 2);
 RTC_DS3231 rtc;
 
@@ -39,8 +46,9 @@ char tmp_date[11];
 
 unsigned long counter = 0;
 
-float current_station = 104.3;
+byte current_station_index = 0;
 
+float my_stations[3] = {ST_Q, ST_HOT, ST_WQXR};
 
 
 
@@ -83,37 +91,39 @@ void turn_radio_i2c_off() {
 }
 
 
-
 void update_rotary_encoder() {
     bool current_state_CLK = digitalRead(RE_CLK);
-    /* Serial.println(current_state_CLK); */
     static bool previous_state_CLK = current_state_CLK;
     bool current_state_DT;
 
     current_state_CLK = digitalRead(RE_CLK);
     if (current_state_CLK != previous_state_CLK  && current_state_CLK == 1){
 
-        turn_radio_i2c_on();
         current_state_DT = digitalRead(RE_DT_LAG);
         // increment
         if (current_state_DT != current_state_CLK) {
             #if DEBUG
             Serial.println(F("supposed to increment"));
-            radio.setSearchUp();
-            radio.searchNext();
             #endif
+            if (current_station_index == (NUM_STATIONS - 1))
+                current_station_index = 0;
+            else
+                current_station_index++;
         }
         // decrement
         else {
             #if DEBUG
             Serial.println(F("supposed to decrement"));
             #endif
-            radio.setSearchDown();
-            radio.searchNext();
+            if (current_station_index == 0)
+                current_station_index = NUM_STATIONS - 1;
+            else
+                current_station_index--;
         }
-        current_station = radio.readFrequencyInMHz();
+        turn_radio_i2c_on();
+        radio.selectFrequencyMuting(my_stations[current_station_index]);
         Serial.print("_now_ it's: ");
-        Serial.println(current_station);
+        Serial.println(my_stations[current_station_index]);
         Serial.print("strength: ");
         Serial.println(radio.getSignalLevel());
         Serial.println();
@@ -156,7 +166,7 @@ void setup() {
 
     // TRANSISTORS!!
     turn_radio_i2c_on();
-    radio.selectFrequencyMuting(current_station);
+    radio.selectFrequencyMuting(my_stations[current_station_index]);
     Serial.println(radio.getSignalLevel());
     turn_radio_i2c_off();
 
