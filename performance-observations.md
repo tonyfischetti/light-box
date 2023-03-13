@@ -35,7 +35,7 @@ ugly. It made no difference whatsoever. I don't know how
 
 ---
 
-Testing performance/memory differences betwee DEBUG true and false
+Testing performance/memory differences between DEBUG true and false
 
 without
 3355 time
@@ -60,3 +60,19 @@ with
 
 btw, times are pattern `all_color_change_pattern_1` with
 step size of 1 and step delta of 2
+THUS FAR
+
+Hereafter, we'll use (the current) pattern 0 with step delay
+and delta of 0 and 2, respectively
+
+---
+
+`7a69be27b3860aa7cf`
+1083 B
+2270 ms
+
+
+
+It looks like each stick of 8 uses 32 bytes
+So 64 (8 neopixel sticks) would use 256
+

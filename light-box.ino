@@ -17,12 +17,12 @@
  *                                                                      *
  ************************************************************************/
 
+#include <stdint.h>
 
 #include <Arduino.h>
+#include <Wire.h>
 #include <Adafruit_NeoPixel.h>
 #include <elapsedMillis.h>
-
-#include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <IRremote.hpp>
 
@@ -32,6 +32,8 @@
  * SOME TODOS                                           *
  *                                                      *
  *                                                      *
+ *   - Convert types to the stdint.h ones:              *
+ *     byte, int, unsigned long, etc..                  *
  *   - Detect if LCD changes... if it doesn't,          *
  *     no need to update it                             *
  *   - Skip chartreuse by going forward to _______,     *
@@ -76,7 +78,7 @@ extern const byte gamma_xlate[];
 #define ALL_NP_COUNT 32
 
 // number of milliseconds to wait for buttons, etc. to settle
-#define EPSILON 250
+#define EPSILON 100
 
 // amount the thumb pots must change to steal control back
 // from the IR remote
@@ -334,10 +336,18 @@ bool debug_values() {
     return true;
 }
 
+// NOTE: This is AVR specific
 int free_ram() {
-    extern int __heap_start, *__brkval;
-    int v;
-    return (int)&v - (__brkval == 0  ? (int)&__heap_start : (int) __brkval);
+    extern int *__brkval;
+    byte last_on_stack;
+    // if heap is empty...
+        /* if ((unsigned int)__brkval == 0) { */
+    if ((uint16_t)__brkval == 0) {
+        // use last-on-stack minus the start of heap
+        return ((uint16_t)&last_on_stack) - ((uint16_t)__malloc_heap_start);
+    }
+    // otherwise, use most recent stack address minus last on heap
+    return ((uint16_t)&last_on_stack) - ((uint16_t)__brkval);
 }
 
 
