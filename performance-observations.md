@@ -76,3 +76,7 @@ and delta of 0 and 2, respectively
 It looks like each stick of 8 uses 32 bytes
 So 64 (8 neopixel sticks) would use 256
 
+
+
+make _says_ 22298 B / 1239 B
+but it's really 1103 B

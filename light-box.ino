@@ -32,8 +32,8 @@
  * SOME TODOS                                           *
  *                                                      *
  *                                                      *
- *   - Convert types to the stdint.h ones:              *
- *     byte, int, unsigned long, etc..                  *
+ *   - Try to typedef `byte` instead of using stock...  *
+ *     typedef uint8_t byte;                            *
  *   - Detect if LCD changes... if it doesn't,          *
  *     no need to update it                             *
  *   - Skip chartreuse by going forward to _______,     *
@@ -228,7 +228,7 @@ byte max_brightnesses[4] = {255, 255, 255, 255};
 bool pattern_changed_p = false;
 
 #if PROFILE
-unsigned long current_fun_inner_loop_time = 0;
+uint32_t current_fun_inner_loop_time = 0;
 #endif
 
 // timers for various things that need timers
@@ -282,8 +282,8 @@ byte step_delay = 1;
 byte step_delta = 2;
 
 // needed for strobe effects
-unsigned int on_length = 100;
-unsigned int off_length = 100;
+uint16_t on_length = 100;
+uint16_t off_length = 100;
 
 // Number of NeoPixel LEDS to use
 // Used by all patterns (rotary button and IR)
@@ -337,11 +337,10 @@ bool debug_values() {
 }
 
 // NOTE: This is AVR specific
-int free_ram() {
-    extern int *__brkval;
+uint16_t free_ram() {
+    extern uint16_t *__brkval;
     byte last_on_stack;
     // if heap is empty...
-        /* if ((unsigned int)__brkval == 0) { */
     if ((uint16_t)__brkval == 0) {
         // use last-on-stack minus the start of heap
         return ((uint16_t)&last_on_stack) - ((uint16_t)__malloc_heap_start);
@@ -373,8 +372,8 @@ bool analog_changed_sufficiently_p(byte previous, byte current,
 }
 
 void update_current_pattern_fun_index(bool increment_p) {
-    if (increment_p){
-        if (current_pattern_fun_index == (NUM_PATTERNS - 1)){
+    if (increment_p) {
+        if (current_pattern_fun_index == (NUM_PATTERNS - 1)) {
             current_pattern_fun_index = 0;
         } else {
             current_pattern_fun_index++;
@@ -406,7 +405,7 @@ void update_np_count() {
     }
     else {
         np_count = 8;
-        for (int i = np_count; i < ALL_NP_COUNT; i++) {
+        for (byte i = np_count; i < ALL_NP_COUNT; i++) {
             pixels.setPixelColor(i, 0, 0, 0, 0);
         }
         while (!IrReceiver.isIdle()) { }
@@ -415,7 +414,7 @@ void update_np_count() {
     lcd_timeout = 0;
 }
 
-unsigned int kind_of_divide_by(unsigned int thisone, byte divisor) {
+uint16_t kind_of_divide_by(uint16_t thisone, byte divisor) {
     return ((thisone + divisor) >> divisor);
 }
 
@@ -441,7 +440,7 @@ void show_home() {
 }
 
 void show_pattern_and_free_mem() {
-    int freemem = free_ram();
+    uint16_t freemem = free_ram();
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("pattern: ");
@@ -465,7 +464,7 @@ void show_pattern_and_timing() {
 }
 
 void show_free_mem_and_timing() {
-    int freemem = free_ram();
+    uint16_t freemem = free_ram();
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("free mem: ");
@@ -646,7 +645,7 @@ bool update_rotary_encoder() {
     bool current_state_DT;
 
     current_state_CLK = digitalRead(RE_CLK);
-    if (current_state_CLK != previous_state_CLK  && current_state_CLK == 1){
+    if (current_state_CLK != previous_state_CLK  && current_state_CLK == 1) {
         current_state_DT = digitalRead(RE_DT_LAG);
         if (current_state_DT != current_state_CLK) {
             #if DEBUG
@@ -670,10 +669,10 @@ bool update_rotary_encoder() {
 // If the button is pressed, it calls `sw_button_press`, which
 // _can_ change based on the pattern / setting
 void update_re_button() {
-    static unsigned long previous_sw_button_press;
-    unsigned long current_millis = millis();
+    static uint32_t previous_sw_button_press;
+    uint32_t current_millis = millis();
     if (digitalRead(RE_SW_BUTTON)==LOW) {
-        if ((current_millis - previous_sw_button_press) > EPSILON){
+        if ((current_millis - previous_sw_button_press) > EPSILON) {
             #if DEBUG
             Serial.println(F("button clicked. about to run `sw_button_press`"));
             #endif
@@ -685,9 +684,9 @@ void update_re_button() {
 
 // TODO TODO TODO: document
 void update_ir() {
-    static unsigned long previous_ir_signal;
+    static uint32_t previous_ir_signal;
     byte command;
-    unsigned long current_millis = millis();
+    uint32_t current_millis = millis();
     if (IrReceiver.decode()) {
         IrReceiver.resume();
         // will turn on LCD backlight for any IR signal. want.
@@ -882,8 +881,8 @@ void update_blue_brightness() {
 // TEMPORARY!!
 // TODO TODO TODO TODO: can I use a byte and a multiplier?
 void update_on_length() {
-    static int previous_on_length;
-    unsigned int current_on_length = map(analogRead(THUMB_POT_1_IN),
+    static uint16_t previous_on_length;
+    uint16_t current_on_length = map(analogRead(THUMB_POT_1_IN),
                                          0, 1023, 2000, 20);
     if (analog_changed_sufficiently_p(previous_on_length,
                 current_on_length, 10) || force_update_p) {
@@ -895,8 +894,8 @@ void update_on_length() {
 }
 
 void update_off_length() {
-    static int previous_off_length;
-    unsigned int current_off_length = map(analogRead(THUMB_POT_2_IN),
+    static uint16_t previous_off_length;
+    uint16_t current_off_length = map(analogRead(THUMB_POT_2_IN),
                                           0, 1023, 2000, 20);
     if (analog_changed_sufficiently_p(previous_off_length,
                 current_off_length, 10) || force_update_p) {
@@ -1047,7 +1046,7 @@ bool shift_color(bool direction, byte color_index, bool reset_timer_p=true) {
 bool shift_colors(bool direction, byte n_colors, byte* color_indices) {
     bool continue_p = false;
     if (step_timer > step_delay) {
-        for (int i = 0; i < n_colors; i++) {
+        for (byte i = 0; i < n_colors; i++) {
             byte current_color = color_indices[i];
             if (shift_color(direction, current_color, false))
                 continue_p = true;
@@ -1071,14 +1070,6 @@ bool crossfade_colors(byte color_goes_up, byte color_goes_down) {
                 current_rgbw[color_goes_down] = current_rgbw[color_goes_down] -
                                                   step_delta;
             display_RGBw_colors();
-
-            Serial.print("<");
-            Serial.print(current_rgbw[RED_INDEX]);
-            Serial.print(", ");
-            Serial.print(current_rgbw[GREEN_INDEX]);
-            Serial.print(", ");
-            Serial.print(current_rgbw[BLUE_INDEX]);
-            Serial.println(">");
 
             step_timer = 0;
         }
@@ -1148,7 +1139,7 @@ void color_shift_0() {
     step_timer = 0;
 
     /* ------- PATTERN LOOP ------- */
-    while (!pattern_changed_p){
+    while (!pattern_changed_p) {
         #if PROFILE
         inner_loop_time = 0;
         #endif
@@ -1231,7 +1222,7 @@ void color_shift_constant_255() {
     step_timer = 0;
 
     /* ------- PATTERN LOOP ------- */
-    while (!pattern_changed_p){
+    while (!pattern_changed_p) {
         #if PROFILE
         inner_loop_time = 0;
         #endif
@@ -1416,7 +1407,7 @@ void bisexual_strobe_pattern() {
     rem_eq              = mutate_off_length_down;
 
     /* ------- PATTERN LOOP ------- */
-    while (!pattern_changed_p){
+    while (!pattern_changed_p) {
         #if PROFILE
         inner_loop_time = 0;
         #endif
@@ -1503,7 +1494,7 @@ void on_the_bridge() {
     rem_eq              = mutate_off_length_down;
 
     /* ------- PATTERN LOOP ------- */
-    while (!pattern_changed_p){
+    while (!pattern_changed_p) {
         #if PROFILE
         inner_loop_time = 0;
         #endif
