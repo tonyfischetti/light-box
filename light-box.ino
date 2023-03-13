@@ -538,7 +538,6 @@ void mutate_brightness_up() {
 void mutate_brightness_down() {
     brightness = constrain(brightness - 25, 0, 255);
     pixels.setBrightness(brightness);
-    show_ir_and_brightness();
     override_LCD_display_with_this(show_ir_and_brightness);
 }
 
@@ -789,14 +788,6 @@ void update_ir() {
 
 // Used by patterns {0, 1, 2, 4} (NtS)
 void update_brightness() {
-    /* I used and `int` here (and the others for a "good" reason). When light
-    box turns on for the first time, the brightness (or other) from the
-    knobs' position won't get set if the knob's position happens to be
-    whatever I arbitrarily set `previous_brightness` to. While it's
-    unlikely, on any one trial, that the two would be within 2 of eachother,
-    over the long run, it's unlikely _not_ to happen.
-    By setting `previous_brightness` negative, I can ensure that the knob's
-    position is _always_ sufficiently different than the previous value     */
     static byte previous_brightness;
     byte current_brightness = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 1);
     if (analog_changed_sufficiently_p(previous_brightness,
