@@ -63,7 +63,7 @@ void set_date() {
 void set_time() {
     char am_or_pm[3] = "pm";
     int hour = now.hour();
-    if (hour > 12) {
+    if (hour >= 12) {
         am_or_pm[0] = 'p';
         hour = hour - 12;
     } else if (hour == 0) {
