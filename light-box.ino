@@ -29,8 +29,11 @@
 
 
 /********************************************************
+ *                                                      *
  * SOME TODOS                                           *
  *                                                      *
+ *   - Separate update_LCD into update_LCD_0 and        *
+ *     update_LCD_1 (for each line of the LCD           *
  *                                                      *
  *   - Detect if LCD changes... if it doesn't,          *
  *     no need to update it                             *
@@ -88,28 +91,33 @@ extern const byte gamma_xlate[];
 #define BLUE_INDEX  2
 #define WHITE_INDEX 3
 
+// milliseconds between polling different sensors
 #define DBUG_EVERY      3000
 #define POT_CHECK_EVERY 50
 #define RE_CHECK_EVERY  10
-#define LCD_EVERY       100
 #define IR_CHECK_EVERY  20
+#define LCD_EVERY       100
 
 #define LCD_TIMEOUT 10000
 
-// TODO TODO TODO TODO: document
-//                      has to change with LCD_EVERY
+// the default LCD display function is overridded if, for example,
+// a paramemter changes (so that the user can see that [and by how
+// much] the parameter is changing). This is how long to keep the
+// temporary LCD display function active before reverting to the
+// default IN UNITS OF LCD_EVERY. So, for example, if LCD_EVERY
+// is 100, and LCD_OVERRIDE_LENGTH is 30, it should stay active for
+// 3 seconds. It doesn't (more like 5), but it should
 #define LCD_OVERRIDE_LENGTH 30
-
-// TODO TODO TODO TODO: document
-#define STEP_DIVISOR 4
 
 // ACHTUNG: NtS: update everytime I add a pattern
 #define NUM_PATTERNS 6
-// fix
+
 #define UP        true
 #define DOWN      false
 #define INCREMENT true
 #define DECREMENT false
+#define ON        true
+#define OFF       false
 
 
 
@@ -169,7 +177,7 @@ extern const byte gamma_xlate[];
 #define REM_ONE     12
 #define REM_TWO     24
 #define REM_THREE   94
-// TODO TODO TODO: temporary
+// TODO: temporary
 #define REM_FOUR    8
 #define REM_FIVE    28
 #define REM_SIX     90
@@ -259,12 +267,11 @@ bool control_to_ir = false;
 //force update sensor values
 bool force_update_p = false;
 
-// TODO TODO TODO TODO: document
+// see documentation of LCD_OVERRIDE_LENGTH
 OutputUpdateFunction lcd_fun_override;
 byte lcd_override_steps_left = 0;
 
-// TODO TODO TODO TODO TODO: I think I'm using the wrong one :/
-LiquidCrystal_I2C lcd(0x27, 20, 4);
+LiquidCrystal_I2C lcd(0x27, 20, 2);
 
 
 
@@ -419,6 +426,7 @@ void update_np_count() {
     lcd_timeout = 0;
 }
 
+// floating point math is FOR SUCKAS
 uint16_t kind_of_divide_by(uint16_t thisone, byte divisor) {
     return ((thisone + divisor) >> divisor);
 }
@@ -434,7 +442,7 @@ void override_LCD_display_with_this(OutputUpdateFunction fun) {
 /* ---------------------------------------------------------
  * OUTPUT UPDATE FUNCTIONS                                */
 
-// TODO TODO TODO: this whole thing smacks of gender
+// TODO: this whole thing smacks of gender
 
 void show_home() {
     lcd.clear();
@@ -533,15 +541,7 @@ void show_on_and_off_length() {
 /* ---------------------------------------------------------
  * REMOTE MUTATE FUNCTIONS                                */
 
-// TODO TODO TODO: is there a better way?
-// TODO TODO TODO: is it a big deal that I'm not changing
-//                 the previous/current values?
-
-// TODO TODO TODO: check all these step sizes
-
-// TODO TODO TODO: explain why the LCD screen overrides are here!
-// (because what it shows is specific to the function bound to the
-// key, not the actual key that is pressed)
+// TODO: check all these step sizes
 
 void mutate_brightness_up() {
     brightness = constrain(brightness + 25, 0, 255);
@@ -687,7 +687,6 @@ void update_re_button() {
     }
 }
 
-// TODO TODO TODO: document
 void update_ir() {
     static uint32_t previous_ir_signal;
     byte command;
@@ -696,7 +695,7 @@ void update_ir() {
         IrReceiver.resume();
         // will turn on LCD backlight for any IR signal. want.
         lcd_timeout = 0;
-        // TODO TODO TODO: should I check if it's the right remote??
+        // TODO: should I check if it's the right remote??
         command = IrReceiver.decodedIRData.command;
         if (!control_to_ir) {
             #if DEBUG
@@ -731,7 +730,6 @@ void update_ir() {
                     gamma_correct_p = !gamma_correct_p;
                     override_LCD_display_with_this(show_rgb_and_gamma);
                     break;
-
                 case REM_UP:
                     rem_up();
                     lcd_timer = 0;
@@ -772,14 +770,13 @@ void update_ir() {
                     pattern_changed_p = true;
                     override_LCD_display_with_this(show_pattern_and_free_mem);
                     break;
-                    // ACHTUNG: NtS: update
+                // ACHTUNG: NtS: update
                 case REM_FIVE:
                     current_pattern_fun_index = 5;
                     pattern_changed_p = true;
                     override_LCD_display_with_this(show_pattern_and_free_mem);
                     break;
-
-                // TODO TODO TODO: temporary
+                // TODO: temporary
                 case REM_SEVEN:
                     override_LCD_display_with_this(show_free_mem_and_timing);
                     break;
@@ -800,7 +797,6 @@ void update_ir() {
 
     /******* ANALOG *******/
 
-// Used by patterns {0, 1, 2, 4} (NtS)
 void update_brightness() {
     static byte previous_brightness;
     byte current_brightness = map(analogRead(THUMB_POT_0_IN), 0, 1023, 255, 1);
@@ -814,7 +810,6 @@ void update_brightness() {
     }
 }
 
-// Used by patterns {0, 1} (NtS)
 void update_step_delay() {
     static byte previous_step_delay;
     byte current_step_delay = map(analogRead(THUMB_POT_1_IN), 0, 1023, 255, 1);
@@ -827,9 +822,8 @@ void update_step_delay() {
     }
 }
 
-// Used by patterns {0, 1} (NtS)
 void update_step_delta() {
-    // TODO TODO: are these appropriate limits?
+    // TODO: are these appropriate limits?
     static byte previous_step_delta;
     byte current_step_delta = map(analogRead(THUMB_POT_2_IN), 0, 1023, 100, 1);
     if (analog_changed_sufficiently_p(previous_step_delta,
@@ -841,7 +835,6 @@ void update_step_delta() {
     }
 }
 
-// Used by patterns {2} (NtS)
 void update_red_brightness() {
     static byte previous_red;
     byte current_red = map(analogRead(THUMB_POT_0_IN),
@@ -855,7 +848,6 @@ void update_red_brightness() {
     }
 }
 
-// Used by patterns {2} (NtS)
 void update_green_brightness() {
     static byte previous_green;
     byte current_green = map(analogRead(THUMB_POT_1_IN),
@@ -869,7 +861,6 @@ void update_green_brightness() {
     }
 }
 
-// Used by patterns {2} (NtS)
 void update_blue_brightness() {
     static byte previous_blue;
     byte current_blue = map(analogRead(THUMB_POT_2_IN),
@@ -883,8 +874,7 @@ void update_blue_brightness() {
     }
 }
 
-// TEMPORARY!!
-// TODO TODO TODO TODO: can I use a byte and a multiplier?
+// TODO: not terribly happy with this
 void update_on_length() {
     static uint16_t previous_on_length;
     uint16_t current_on_length = map(analogRead(THUMB_POT_1_IN),
@@ -917,33 +907,49 @@ void update_off_length() {
 /* ---------------------------------------------------------
  * SHARED FUNCTIONS                                       */
 
-void display_RGBw_colors() {
-    for (byte i = 0; i < np_count; i++) {
-        if (gamma_correct_p) {
-            pixels.setPixelColor(i,
-                pgm_read_byte(&gamma_xlate[current_rgbw[RED_INDEX]]),
-                pgm_read_byte(&gamma_xlate[current_rgbw[GREEN_INDEX]]),
-                pgm_read_byte(&gamma_xlate[current_rgbw[BLUE_INDEX]]),
-                pgm_read_byte(&gamma_xlate[current_rgbw[WHITE_INDEX]]));
-        } else {
-            pixels.setPixelColor(i, current_rgbw[RED_INDEX],
-                                    current_rgbw[GREEN_INDEX],
-                                    current_rgbw[BLUE_INDEX],
-                                    current_rgbw[WHITE_INDEX]);
-        }
-    }
+// actually writes the pixel updates to the neopixels.
+// the trick to make the IR remote work with the neopixels
+// (whomst disable intterupts) is to wait until the IR
+// receiver is idle
+void display_pixels_update() {
     while (!IrReceiver.isIdle()) { }
     pixels.show();
 }
 
-void display_RGBw_zeroes() {
+// sets the color of an individual color to the current
+// color (`current_rgbw`). takes gamma correction into account
+void set_pixel_color(byte i) {
+    if (gamma_correct_p) {
+        pixels.setPixelColor(i,
+            pgm_read_byte(&gamma_xlate[current_rgbw[RED_INDEX]]),
+            pgm_read_byte(&gamma_xlate[current_rgbw[GREEN_INDEX]]),
+            pgm_read_byte(&gamma_xlate[current_rgbw[BLUE_INDEX]]),
+            pgm_read_byte(&gamma_xlate[current_rgbw[WHITE_INDEX]]));
+    } else {
+        pixels.setPixelColor(i, current_rgbw[RED_INDEX],
+                                current_rgbw[GREEN_INDEX],
+                                current_rgbw[BLUE_INDEX],
+                                current_rgbw[WHITE_INDEX]);
+    }
+}
+
+// set all pixels (and displays)
+void display_RGBw_colors() {
+    for (byte i = 0; i < np_count; i++) {
+        set_pixel_color(i);
+    }
+    display_pixels_update();
+}
+
+// turns off all pixels (and displays)
+void turn_off_pixels() {
     for (byte i = 0; i < np_count; i++) {
         pixels.setPixelColor(i, 0, 0, 0, 0);
     }
-    while (!IrReceiver.isIdle()) { }
-    pixels.show();
+    display_pixels_update();
 }
 
+// sets `current_rgbw` and displays
 void display_exact_color(byte R, byte G, byte B, byte W) {
     current_rgbw[RED_INDEX]   = R;
     current_rgbw[GREEN_INDEX] = G;
@@ -959,23 +965,10 @@ void display_dot(byte index, bool mirror_p=true, bool project_p=true) {
             (mirror_p  && ((7 - i)  == index)) ||
             ((project_p && mirror_p) &&
              ((7 - index) == (i % 8)))) {
-            // TODO TODO TODO TODO: seriously need to reduce duplication
-            if (gamma_correct_p) {
-                pixels.setPixelColor(i,
-                    pgm_read_byte(&gamma_xlate[current_rgbw[RED_INDEX]]),
-                    pgm_read_byte(&gamma_xlate[current_rgbw[GREEN_INDEX]]),
-                    pgm_read_byte(&gamma_xlate[current_rgbw[BLUE_INDEX]]),
-                    pgm_read_byte(&gamma_xlate[current_rgbw[WHITE_INDEX]]));
-            } else {
-                pixels.setPixelColor(i, current_rgbw[RED_INDEX],
-                                        current_rgbw[GREEN_INDEX],
-                                        current_rgbw[BLUE_INDEX],
-                                        current_rgbw[WHITE_INDEX]);
-            }
+            set_pixel_color(i);
         }
     }
-    while (!IrReceiver.isIdle()) { }
-    pixels.show();
+    display_pixels_update();
 }
 
 bool update_all_devices() {
@@ -1047,21 +1040,6 @@ bool shift_color(bool direction, byte color_index, bool reset_timer_p=true) {
     return true;
 }
 
-// TODO TODO TODO TODO: is this untested??
-bool shift_colors(bool direction, byte n_colors, byte* color_indices) {
-    bool continue_p = false;
-    if (step_timer > step_delay) {
-        for (byte i = 0; i < n_colors; i++) {
-            byte current_color = color_indices[i];
-            if (shift_color(direction, current_color, false))
-                continue_p = true;
-        }
-        step_timer = 0;
-        return continue_p;
-    }
-    return true;
-}
-
 // first color goes up, second goes down
 bool crossfade_colors(byte color_goes_up, byte color_goes_down) {
     bool more_up_p = room_to_go_p(UP, color_goes_up);
@@ -1083,21 +1061,21 @@ bool crossfade_colors(byte color_goes_up, byte color_goes_down) {
     return false;
 }
 
-// TODO TODO TODO TODO: make one function and #define ON/OFF true/false
-bool hold_on() {
-    if (on_timer > on_length) {
-        on_timer = 0;
-        return false;
+// allows pattern to continue after the on (or off) timer runs out
+bool hold(bool on_p) {
+    if (on_p) {
+        if (on_timer > on_length) {
+            on_timer = 0;
+            return false;
+        }
+        return true;
+    } else {
+        if (off_timer > off_length) {
+            off_timer = 0;
+            return false;
+        }
+        return true;
     }
-    return true;
-}
-
-bool hold_off() {
-    if (off_timer > off_length) {
-        off_timer = 0;
-        return false;
-    }
-    return true;
 }
 
 
@@ -1121,8 +1099,8 @@ void color_shift_0() {
 
     /* ------- SETUP CODE ------- */
     current_rgbw[RED_INDEX]   = 0; // starts at 011
-    current_rgbw[GREEN_INDEX] = 255;
-    current_rgbw[BLUE_INDEX]  = 255;
+    current_rgbw[GREEN_INDEX] = max_brightnesses[GREEN_INDEX];
+    current_rgbw[BLUE_INDEX]  = max_brightnesses[BLUE_INDEX];
 
     update_thumb_pot_0  = update_brightness;
     update_thumb_pot_1  = update_step_delay;
@@ -1140,7 +1118,6 @@ void color_shift_0() {
     update_all_devices();
     force_update_p = false;
 
-    // TODO TODO: why?
     step_timer = 0;
 
     /* ------- PATTERN LOOP ------- */
@@ -1202,8 +1179,7 @@ void color_shift_constant_255() {
     #endif
 
     /* ------- SETUP CODE ------- */
-    // TODO TODO TODO TODO: this (and others) don't respect max_brightnesses
-    current_rgbw[RED_INDEX]   = 255; // starts at 100
+    current_rgbw[RED_INDEX]   = max_brightnesses[RED_INDEX];
     current_rgbw[GREEN_INDEX] = 0;
     current_rgbw[BLUE_INDEX]  = 0;
 
@@ -1223,7 +1199,6 @@ void color_shift_constant_255() {
     update_all_devices();
     force_update_p = false;
 
-    // TODO TODO: why?
     step_timer = 0;
 
     /* ------- PATTERN LOOP ------- */
@@ -1300,7 +1275,7 @@ void choose_a_color() {
         debug_values();
         // stop the step timer from overflowing
         step_timer = 0;
-        // TODO TODO TODO TODO: check it see if they changed first
+        // TODO TODO: check it see if they changed first
         display_RGBw_colors();
 
         #if PROFILE
@@ -1349,7 +1324,7 @@ void warm_light_pattern() {
     current_rgbw[RED_INDEX]   = 0;
     current_rgbw[GREEN_INDEX] = 0;
     current_rgbw[BLUE_INDEX]  = 0;
-    current_rgbw[WHITE_INDEX] = 255;
+    current_rgbw[WHITE_INDEX] = max_brightnesses[WHITE_INDEX];
 
     display_RGBw_colors();
 
@@ -1363,7 +1338,9 @@ void warm_light_pattern() {
         debug_values();
         // stop the step timer from overflowing
         step_timer = 0;
-        // TODO TODO TODO TODO: check it see if they changed first
+        // TODO TODO: check it see if they changed first
+        // the colors won't change, of course, but the
+        // brightness needs to update
         display_RGBw_colors();
 
         #if PROFILE
@@ -1417,39 +1394,38 @@ void bisexual_strobe_pattern() {
         inner_loop_time = 0;
         #endif
 
-        // TODO TODO TODO TODO NOW: reduce code duplication
         display_exact_color(255, 0, 121, 0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_on())                 {}
-        display_RGBw_zeroes();
+                hold(ON))                 {}
+        turn_off_pixels();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_off())                {}
+                hold(OFF))                {}
 
         display_exact_color(255, 0, 255, 0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_on())                 {}
-        display_RGBw_zeroes();
+                hold(ON))                 {}
+        turn_off_pixels();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_off())                {}
+                hold(OFF))                {}
 
         display_exact_color(0, 0, 255, 0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_on())                 {}
-        display_RGBw_zeroes();
+                hold(ON))                 {}
+        turn_off_pixels();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_off())                {}
+                hold(OFF))                {}
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
@@ -1469,7 +1445,8 @@ void bisexual_strobe_pattern() {
 
 /* PATTERN 5:
  *
- *  TODO TODO TODO TODO: document
+ *  There's a little light pattern near the bottom of the
+ *  Enterprises' viewscreen. This is it
  *
  */
 
@@ -1481,6 +1458,7 @@ void on_the_bridge() {
 
     /* ------- SETUP CODE ------- */
 
+    // doesn't respect `max_brightnesses`
     current_rgbw[RED_INDEX]   = 255;
     current_rgbw[GREEN_INDEX] = 82;
     current_rgbw[BLUE_INDEX]  = 9;
@@ -1504,35 +1482,35 @@ void on_the_bridge() {
         inner_loop_time = 0;
         #endif
 
-        display_RGBw_zeroes();
+        turn_off_pixels();
         display_dot(3);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_on())                 {}
-        display_RGBw_zeroes();
+                hold(ON))                 {}
+        turn_off_pixels();
         display_dot(2);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_on())                 {}
-        display_RGBw_zeroes();
+                hold(ON))                 {}
+        turn_off_pixels();
         display_dot(1);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_on())                 {}
-        display_RGBw_zeroes();
+                hold(ON))                 {}
+        turn_off_pixels();
         display_dot(0);
         on_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_on())                 {}
-        display_RGBw_zeroes();
+                hold(ON))                 {}
+        turn_off_pixels();
         off_timer = 0;
         while (update_all_devices() &&
                 debug_values() &&
-                hold_off())                {}
+                hold(OFF))                {}
 
         #if PROFILE
         current_fun_inner_loop_time = inner_loop_time;
