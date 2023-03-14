@@ -32,8 +32,6 @@
  * SOME TODOS                                           *
  *                                                      *
  *                                                      *
- *   - Try to typedef `byte` instead of using stock...  *
- *     typedef uint8_t byte;                            *
  *   - Detect if LCD changes... if it doesn't,          *
  *     no need to update it                             *
  *   - Skip chartreuse by going forward to _______,     *
@@ -78,7 +76,7 @@ extern const byte gamma_xlate[];
 #define ALL_NP_COUNT 32
 
 // number of milliseconds to wait for buttons, etc. to settle
-#define EPSILON 100
+#define EPSILON 125
 
 // amount the thumb pots must change to steal control back
 // from the IR remote
@@ -208,6 +206,13 @@ RemoteFunction rem_up       = nothing_function;
 RemoteFunction rem_down     = nothing_function;
 RemoteFunction rem_st       = nothing_function;
 RemoteFunction rem_eq       = nothing_function;
+
+
+
+/* ---------------------------------------------------------
+ * OTHER TYPEDEFS                                          */
+
+typedef uint8_t byte;
 
 
 
